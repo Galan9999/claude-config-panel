@@ -103,7 +103,7 @@ function renderItem() {
     '<div class="tabs">' + tabs.map(([t, l]) =>
       '<div class="tab' + (tab === t ? ' on' : '') + '" data-t="' + t + '">' + l + '</div>').join('') + '</div>';
 
-  if (tab === 'ui' && cur.format === 'json') h += jsonUI();
+  if (tab === 'ui' && cur.format === 'json') h += jsonUI() + historial();
   else if (tab === 'leer') h += '<div class="md">' + md(text) + '</div>' + actions();
   else h += '<textarea id="raw" spellcheck="false">' + esc(text) + '</textarea>';
 
@@ -116,8 +116,49 @@ function renderItem() {
   wire();
 }
 
+const fecha = (iso) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso
+    : d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+function historial() {
+  const g = cur.git || {};
+  if (!g.tracked) {
+    const porque = g.reason === 'fuera de un repositorio'
+      ? 'Esta pieza no está dentro de un repositorio git, así que no hay autoría que mostrar: sólo la fecha del fichero.'
+      : 'Git no sigue este fichero (' + esc(g.reason || 'sin historial') + '), así que no hay autoría que mostrar.';
+    return '<h2 class="sec">Historial</h2><div class="card"><div class="desc">' + porque +
+      (cur.mtime ? ' Modificado por última vez el ' + fecha(cur.mtime) + '.' : '') + '</div></div>';
+  }
+  const { creator, lastChange, commits, authors } = g.history;
+  const link = (c) => cur.remote
+    ? '<a href="' + esc(cur.remote) + '/commit/' + esc(c.hash) + '" target="_blank" rel="noopener">' + esc(c.hash.slice(0, 7)) + '</a>'
+    : '<code>' + esc(c.hash.slice(0, 7)) + '</code>';
+
+  let h = '<h2 class="sec">Historial</h2><div class="card">' +
+    '<div class="ttl">Creada por ' + esc(creator.author) + '<span class="tag">' + fecha(creator.date) + '</span></div>' +
+    '<div class="desc">Último cambio: ' + esc(lastChange.author) + ', ' + fecha(lastChange.date) + '. ' +
+    commits + (commits === 1 ? ' cambio en total' : ' cambios en total') +
+    (authors.length > 1 ? ', de ' + authors.length + ' personas' : '') + '.</div>';
+
+  if (authors.length > 1) {
+    h += '<div class="rules" style="margin-top:10px">' + authors.map((a) =>
+      '<span class="rule">' + esc(a.author) + ' <b style="cursor:default">' + a.commits + '</b></span>').join('') + '</div>';
+  }
+
+  h += '<table style="margin-top:12px"><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th>Líneas</th></tr>' +
+    g.changes.map((c) => '<tr><td>' + fecha(c.date) + '</td><td>' + esc(c.author) + '</td>' +
+      '<td>' + esc(c.subject) + ' ' + link(c) + '</td>' +
+      '<td class="cmd" style="white-space:nowrap">' +
+      (c.added ? '<span style="color:var(--ok)">+' + c.added + '</span> ' : '') +
+      (c.removed ? '<span style="color:var(--err)">−' + c.removed + '</span>' : '') + '</td></tr>').join('') +
+    '</table></div>';
+  return h;
+}
+
 function actions() {
-  let h = '<h2 class="sec">Acciones</h2>';
+  let h = historial() + '<h2 class="sec">Acciones</h2>';
   const label = DATA.kinds[cur.kind].one;
   h += '<div class="card"><div class="ttl">Auditar con Claude</div>' +
     '<div class="desc">Copia esto y pégalo en Claude Code: te dice si esta pieza se dispara cuando debe y si se solapa con otra.</div>' +

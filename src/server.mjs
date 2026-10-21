@@ -6,6 +6,7 @@ import { BACKUPS, tilde } from './paths.mjs';
 import { read } from './fsutil.mjs';
 import { KIND_INFO } from './labels.mjs';
 import { discover } from './discover.mjs';
+import { fileHistory } from './history.mjs';
 
 const UI_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'ui');
 const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml' };
@@ -84,7 +85,8 @@ export function createPanelServer(options = {}) {
     if (req.method === 'GET' && url.pathname === '/api/item') {
       const it = state.items[Number(url.searchParams.get('id'))];
       if (!it) return send(res, 404, { error: 'no encontrado' });
-      return send(res, 200, { ...it, content: read(it.path) });
+      // El historial cuesta un git log por fichero: sólo al abrir la pieza.
+      return send(res, 200, { ...it, content: read(it.path), git: fileHistory(it.repo, it.relPath) });
     }
 
     if (req.method === 'POST' && url.pathname === '/api/item') {

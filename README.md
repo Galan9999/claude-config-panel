@@ -48,6 +48,10 @@ npx claude-config-panel ~/mis-repos
   configuración que actúa sin que tú estés delante, y la que menos se revisa.
 - **Lee y edita las skills y los agentes.** Markdown renderizado, con pestaña de
   edición y copia de seguridad automática en cada guardado.
+- **Dice quién hizo qué.** De cada pieza versionada: quién la creó y cuándo,
+  quién la ha tocado después, cuántas líneas cambió cada commit y enlace al
+  commit en GitHub. De lo que no está en git —`~/.claude`, los
+  `settings.local.json`— lo dice claramente en vez de inventar un autor.
 - **Abre tickets.** Desde cualquier pieza que viva en un repo de GitHub, un issue
   prellenado con la ruta del fichero.
 
@@ -134,7 +138,7 @@ Node: el servidor es `node:http` y las pruebas son `node:test`.
 git clone https://github.com/Galan9999/claude-config-panel
 cd claude-config-panel
 npm start      # arranca el panel
-npm test       # 55 pruebas
+npm test       # 64 pruebas
 ```
 
 ### Estructura
@@ -146,6 +150,7 @@ src/
   paths.mjs      Rutas de ~/.claude
   fsutil.mjs     Lectura tolerante, frontmatter, doc de scripts
   git.mjs        Remoto de GitHub y detección de worktrees
+  history.mjs    Autoría y cambios de cada pieza, con git log
   labels.mjs     Los nombres en castellano de cada pieza
   discover.mjs   Recorrido del disco y catálogo de piezas
   server.mjs     Rutas HTTP, guardado y copias de seguridad
