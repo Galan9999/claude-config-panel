@@ -111,7 +111,11 @@ preparado en cada pieza, en "Auditar con Claude".
 ### El bucle: auditoría → hallazgo → ticket
 
 El panel enseña la revisión **al lado** de la pieza, sin modificarla: lo que hay
-a un lado, lo que el auditor dice al otro. Hay además una sección
+a un lado, lo que el auditor dice al otro. En los listados, cada pieza con hallazgos lleva su distintivo con la peor
+severidad, para no tener que abrirlas una a una. Y una pieza que no es el
+fichero del hallazgo pero que éste nombra queda marcada igual: un hook
+definido en `settings.json` habla de un script que vive en otro sitio, y
+quien abre el script quiere enterarse. Hay además una sección
 **Diagnóstico** con el informe entero: los hallazgos ordenados por severidad,
 cada uno enlazado a la pieza que lo origina, y la lista de lo que el auditor
 **no** pudo comprobar, que es la diferencia entre un informe honesto y uno que
@@ -171,7 +175,7 @@ Node: el servidor es `node:http` y las pruebas son `node:test`.
 git clone https://github.com/Galan9999/claude-config-panel
 cd claude-config-panel
 npm start      # arranca el panel
-npm test       # 96 pruebas
+npm test       # 100 pruebas
 ```
 
 ### Estructura

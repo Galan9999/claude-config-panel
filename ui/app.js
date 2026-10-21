@@ -376,7 +376,9 @@ function renderList(kind) {
     for (const it of list) {
       h += '<div class="card clk" data-id="' + it.id + '"><div class="ttl">' + esc(it.title) +
         (it.name !== it.title ? ' <span class="tag">' + esc(it.name) + '</span>' : '') +
-        (it.remote ? ' <span class="tag acc">repo</span>' : '') + '</div>' +
+        (it.hallazgos ? ' <span class="tag ' + SEV[it.peor] + '">' + it.hallazgos +
+          (it.hallazgos === 1 ? ' hallazgo' : ' hallazgos') + '</span>' : '') +
+        (it.mencionado ? ' <span class="tag">citada en ' + it.mencionado + '</span>' : '') + '</div>' +
         (it.description ? '<div class="desc">' + esc(it.description.slice(0, 260)) +
           (it.description.length > 260 ? '…' : '') + '</div>' : '<div class="desc" style="opacity:.6">Sin descripción.</div>') +
         '</div>';
@@ -483,6 +485,20 @@ function hallazgosDeLaPieza() {
           : '<div class="desc" style="margin-top:7px">Aún no está en Notion. ' +
             'Lánzale la auditoría al agente <code>auditor-config</code> pidiéndole que publique.</div>') +
         '</div>').join('') + '</div>';
+  }
+  if (cur.mencionan && cur.mencionan.length) {
+    h += '<div class="card"><div class="ttl">La auditoría la cita en otro hallazgo<span class="tag">' +
+      cur.mencionan.length + '</span></div>' +
+      '<div class="desc" style="margin-bottom:9px">El hallazgo está colgado de otro fichero, pero habla de ' +
+      'esta pieza. Pasa con los hooks: el problema se define en <code>settings.json</code> y apunta a un ' +
+      'script que vive aparte.</div>' +
+      cur.mencionan.map((f) => '<div class="perm" style="display:block">' +
+        '<div class="ttl" style="font-size:13.5px"><span class="tag ' + (SEV[f.severity] || '') + '">' +
+        esc(f.severity) + '</span>' + esc(f.title) + '</div>' +
+        '<div class="desc" style="margin-top:4px">' + esc(f.what) + '</div>' +
+        '<div class="desc" style="margin-top:4px"><b>Propuesta:</b> ' + esc(f.proposal) + '</div>' +
+        '<div class="desc" style="margin-top:5px">Colgado de <code>' + esc(f.path) +
+        (f.line ? ':' + f.line : '') + '</code></div></div>').join('') + '</div>';
   }
   return h;
 }

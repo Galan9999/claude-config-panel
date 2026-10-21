@@ -9,7 +9,7 @@ import { KIND_INFO } from './labels.mjs';
 import { discover } from './discover.mjs';
 import { fileHistory, repoIndex, buildPeople, mergeIdentities, clearIndexCache } from './history.mjs';
 import { groupFlows, parseTools, findCommandRefs, findConfigPaths, brokenRefs, isFolderDoc } from './flows.mjs';
-import { loadFindings } from './findings.mjs';
+import { loadFindings, hallazgosQueCitan } from './findings.mjs';
 
 const UI_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'ui');
 const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml' };
@@ -77,6 +77,24 @@ export function createPanelServer(options = {}) {
 
     if (req.method === 'GET' && url.pathname === '/api/items') {
       state = discover(options);
+      // Marcar en el listado qué piezas tienen hallazgos: si no, hay que abrirlas
+      // una a una para enterarse.
+      const porRepo = new Map();
+      for (const it of state.items) {
+        if (!it.repo || !it.relPath) continue;
+        if (!porRepo.has(it.repo)) porRepo.set(it.repo, loadFindings(it.repo).doc);
+        const doc = porRepo.get(it.repo);
+        if (!doc) continue;
+        const propios = doc.findings.filter((f) => f.path === it.relPath);
+        // Un hallazgo sobre un hook definido dentro de settings.json habla de un
+        // script que vive en otro fichero. Si lo nombra, también le toca.
+        const mencionan = hallazgosQueCitan(doc.findings, it.relPath);
+        if (propios.length) {
+          it.hallazgos = propios.length;
+          it.peor = ['alta', 'media', 'baja'].find((s) => propios.some((f) => f.severity === s));
+        }
+        if (mencionan.length) it.mencionado = mencionan.length;
+      }
       const counts = Object.fromEntries(
         Object.keys(KIND_INFO).map((k) => [k, state.items.filter((i) => i.kind === k).length]));
       return send(res, 200, {
@@ -172,8 +190,11 @@ export function createPanelServer(options = {}) {
       // El historial cuesta un git log por fichero: sólo al abrir la pieza.
       // La revisión del auditor se enseña al lado de la pieza, sin modificarla.
       const { doc } = it.repo ? loadFindings(it.repo) : { doc: null };
-      const hallazgos = doc ? doc.findings.filter((f) => f.path === it.relPath) : [];
-      return send(res, 200, { ...it, content: read(it.path), git: fileHistory(it.repo, it.relPath), hallazgos });
+      const todos = doc ? doc.findings : [];
+      const hallazgos = todos.filter((f) => f.path === it.relPath);
+      const mencionan = hallazgosQueCitan(todos, it.relPath);
+      return send(res, 200, { ...it, content: read(it.path),
+        git: fileHistory(it.repo, it.relPath), hallazgos, mencionan });
     }
 
     if (req.method === 'POST' && url.pathname === '/api/item') {

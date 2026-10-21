@@ -99,3 +99,35 @@ export function loadFindings(scopePath) {
   const { ok, errors } = validateFindings(parsed);
   return { doc: ok ? parsed : null, errors, path };
 }
+
+/* ---------- cruzar hallazgos con piezas que no son su fichero ---------- */
+
+// Nombres que lleva media configuración: casarlos por nombre uniría cualquier
+// cosa con cualquier cosa.
+const GENERICOS = new Set(['skill.md', 'agent.md', 'index.md', 'claude.md', 'readme.md',
+  'settings.json', 'settings.local.json', 'launch.json', 'package.json']);
+
+/**
+ * Por qué cadenas se puede reconocer a una pieza dentro del texto de un
+ * hallazgo: su ruta, y su nombre de fichero cuando es distintivo. Un hallazgo
+ * sobre un hook definido en `settings.json` habla de un script que vive en otro
+ * sitio, y normalmente lo nombra como `prettier-on-write.sh`, no por su ruta.
+ */
+export function clavesDePieza(relPath) {
+  if (!relPath) return [];
+  const base = relPath.split('/').pop();
+  return [relPath, base]
+    .filter((k, i, a) => a.indexOf(k) === i)
+    .filter((k) => k.length >= 8 && !GENERICOS.has(k.toLowerCase()));
+}
+
+/** Hallazgos de otros ficheros que hablan de esta pieza. */
+export function hallazgosQueCitan(findings, relPath) {
+  const claves = clavesDePieza(relPath);
+  if (!claves.length) return [];
+  return findings.filter((f) => {
+    if (f.path === relPath) return false;
+    const texto = f.title + ' ' + f.what + ' ' + f.proposal;
+    return claves.some((k) => texto.includes(k));
+  });
+}

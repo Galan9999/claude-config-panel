@@ -99,3 +99,31 @@ test('rechaza un notion sin url o con recurrencias absurdas', () => {
   const b = ok(); b.findings[0].notion = { url: 'https://n.so/x', recurrences: 0 };
   assert.match(validateFindings(b).errors.join(), /recurrences/);
 });
+
+import { clavesDePieza, hallazgosQueCitan } from '../src/findings.mjs';
+
+test('una pieza se reconoce por su ruta y por su nombre de fichero', () => {
+  assert.deepEqual(clavesDePieza('.claude/hooks/prettier-on-write.sh'),
+    ['.claude/hooks/prettier-on-write.sh', 'prettier-on-write.sh']);
+});
+
+test('los nombres que lleva media configuración no valen para cruzar', () => {
+  assert.deepEqual(clavesDePieza('.claude/skills/x/SKILL.md'), ['.claude/skills/x/SKILL.md']);
+  assert.deepEqual(clavesDePieza('CLAUDE.md'), []);
+  assert.deepEqual(clavesDePieza('.claude/settings.local.json'), ['.claude/settings.local.json']);
+});
+
+test('encuentra el hallazgo que habla de un script aunque cuelgue de otro fichero', () => {
+  const f = [{
+    path: '.claude/settings.local.json', severity: 'alta', title: 'Hook de Prettier duplicado',
+    what: 'El mismo matcher lanza dos Prettier.',
+    proposal: 'En ese caso ampliar prettier-on-write.sh, no duplicarlo.',
+  }];
+  assert.equal(hallazgosQueCitan(f, '.claude/hooks/prettier-on-write.sh').length, 1);
+});
+
+test('un hallazgo no se cita a sí mismo', () => {
+  const f = [{ path: 'a/prettier-on-write.sh', severity: 'alta', title: 'x',
+    what: 'prettier-on-write.sh falla', proposal: 'arreglarlo' }];
+  assert.deepEqual(hallazgosQueCitan(f, 'a/prettier-on-write.sh'), []);
+});
