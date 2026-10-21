@@ -59,6 +59,7 @@ button.ghost{background:transparent;color:var(--tx);border:1px solid var(--line2
 button.ghost:hover{background:var(--panel2)}
 button:disabled{opacity:.38;cursor:not-allowed}
 .bar{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 40%);padding:20px 0 6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.bar.oculta{display:none}
 .msg{font-size:12.5px}.msg.ok{color:var(--ok)}.msg.err{color:var(--err)}.msg.warn{color:var(--warn)}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}

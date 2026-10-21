@@ -412,7 +412,10 @@ function renderItem() {
   else if (tab === 'leer') h += '<div class="md">' + md(text) + '</div>' + actions();
   else h += '<textarea id="raw" spellcheck="false">' + esc(text) + '</textarea>';
 
-  if (tab !== 'leer') h += '<div class="bar">' +
+  // La barra sólo cuando hay algo que guardar. Antes se quedaba puesta con los
+  // botones apagados en la vista estructurada y al salir del editor sin tocar
+  // nada, dando a entender que había cambios pendientes.
+  if (tab !== 'leer') h += '<div class="bar' + (dirty ? '' : ' oculta') + '">' +
     '<button id="save"' + (dirty ? '' : ' disabled') + '>Guardar</button>' +
     '<button class="ghost" id="reset"' + (dirty ? '' : ' disabled') + '>Descartar</button>' +
     '<span class="msg' + (dirty ? ' warn' : '') + '" id="msg">' + (dirty ? 'cambios sin guardar' : '') + '</span></div>';
@@ -618,7 +621,10 @@ function wire() {
     ta.classList.toggle('bad', bad);
     m.textContent = bad ? 'JSON inválido' : (d ? 'cambios sin guardar' : '');
     m.className = 'msg' + (bad ? ' err' : (d ? ' warn' : ''));
-    $('#save').disabled = !d || bad; $('#reset').disabled = !d; };
+    $('#save').disabled = !d || bad; $('#reset').disabled = !d;
+    // Aparece al primer cambio y desaparece si lo deshaces a mano.
+    const barra = $('.bar');
+    if (barra) barra.classList.toggle('oculta', !d && !bad); };
   const rst = $('#reset'); if (rst) rst.onclick = () => { text = orig; renderItem(); };
   const sv = $('#save'); if (sv) sv.onclick = async () => {
     const r = await (await fetch('/api/item', { method: 'POST', headers: { 'content-type': 'application/json' },
@@ -626,7 +632,9 @@ function wire() {
     const m = $('#msg');
     if (r.error) { m.textContent = r.error; m.className = 'msg err'; return; }
     orig = text; m.textContent = 'guardado · copia en ' + r.backup; m.className = 'msg ok';
-    $('#save').disabled = true; $('#reset').disabled = true; };
+    $('#save').disabled = true; $('#reset').disabled = true;
+    // Un momento para leer la confirmación y la barra se retira.
+    setTimeout(() => { const b = $('.bar'); if (b && text === orig) b.classList.add('oculta'); }, 2200); };
 }
 boot();
 
