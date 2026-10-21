@@ -2,7 +2,7 @@ import { existsSync, statSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 import { CLAUDE, tilde } from './paths.mjs';
 import { ls, read, frontmatter, scriptDoc } from './fsutil.mjs';
-import { gitRemote, clearRemoteCache, isLinkedWorktree } from './git.mjs';
+import { gitRemote, clearRemoteCache, isLinkedWorktree, repoRoot } from './git.mjs';
 import { describeConfig } from './labels.mjs';
 
 /** Carpetas que nunca contienen configuración y cuestan caro de recorrer. */
@@ -121,6 +121,10 @@ export function discover({ scanRoots = [], withWorktrees = false, depth = DEFAUL
   items.forEach((it, i) => {
     it.id = String(i);
     it.displayPath = tilde(it.path);
+    // `project` es la carpeta con .claude/; `repo` es la raíz de git, que en un
+    // monorepo no son la misma: apps/web es proyecto pero no repo.
+    it.project = it.repo;
+    it.repo = it.repo ? repoRoot(it.repo) : null;
     it.remote = it.repo ? gitRemote(it.repo) : null;
     it.relPath = it.repo ? relative(it.repo, it.path) : null;
     try { const s = statSync(it.path); it.size = s.size; it.mtime = s.mtime.toISOString(); } catch { /* ya no está */ }

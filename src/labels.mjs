@@ -23,3 +23,9 @@ export const KIND_INFO = {
   hook:    { label: 'Hooks y scripts', one: 'script', icon: '⚡', blurb: 'Lo que se ejecuta solo, sin pedirte permiso, cuando ocurre un evento. La pieza que más conviene revisar.' },
   task:    { label: 'Tareas programadas', one: 'tarea', icon: '◷', blurb: 'Se lanzan por calendario, sin que tú estés delante.' },
 };
+
+/** La vista de personas no es un tipo de pieza, pero navega igual. */
+export const PEOPLE_INFO = {
+  label: 'Personas', icon: '◉',
+  blurb: 'Quién ha construido la configuración de estos repos: qué creó cada uno y qué ha tocado después.',
+};

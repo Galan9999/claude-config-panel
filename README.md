@@ -52,6 +52,12 @@ npx claude-config-panel ~/mis-repos
   quién la ha tocado después, cuántas líneas cambió cada commit y enlace al
   commit en GitHub. De lo que no está en git —`~/.claude`, los
   `settings.local.json`— lo dice claramente en vez de inventar un autor.
+- **Tiene perfil por persona.** Quién ha construido la configuración de un repo:
+  qué creó cada uno, qué tocó después y cuántos commits lleva. Unifica al mismo
+  humano aunque commitee con varios correos — el del trabajo, el
+  `12345+usuario@users.noreply.github.com` de editar en la web, el
+  `usuario@MacBook-Air.local` de un portátil sin configurar — y enseña qué
+  identidades ha fundido para que puedas detectar una fusión mal hecha.
 - **Abre tickets.** Desde cualquier pieza que viva en un repo de GitHub, un issue
   prellenado con la ruta del fichero.
 
@@ -138,7 +144,7 @@ Node: el servidor es `node:http` y las pruebas son `node:test`.
 git clone https://github.com/Galan9999/claude-config-panel
 cd claude-config-panel
 npm start      # arranca el panel
-npm test       # 64 pruebas
+npm test       # 78 pruebas
 ```
 
 ### Estructura

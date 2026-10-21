@@ -81,3 +81,15 @@ td.cmd{font:11.5px var(--mono);color:var(--dim);word-break:break-all}
 .hint b{color:var(--acc2)}
 pre.copy{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:11px 13px;font:12px var(--mono);
   overflow-x:auto;margin:9px 0 0;white-space:pre-wrap;word-break:break-word}
+
+/* Etiquetas en línea: autores de una pieza, piezas de una persona. */
+.rules{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px}
+.rule{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:4px 9px;
+  font:12px var(--mono);display:inline-flex;align-items:center;gap:7px;line-height:1.4}
+.rule b{color:var(--dim);font-weight:500}
+.rule .sc{color:var(--dim);font-size:10.5px}
+
+.avatar{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;
+  background:var(--accsoft);color:var(--acc2);font-size:11px;font-weight:600;letter-spacing:.3px;flex:0 0 26px}
+.avatar.big{width:36px;height:36px;font-size:14px;margin-right:10px;vertical-align:-7px}
+.rule.clk:hover{border-color:var(--acc);color:var(--acc2)}

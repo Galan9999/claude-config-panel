@@ -4,21 +4,26 @@ import { explain } from './permissions.js';
 import { md } from './markdown.js';
 
 let DATA = null, view = 'resumen', cur = null, text = '', orig = '', tab = 'ui';
+let PEOPLE = null, personaAbierta = null;
 
 /* ----- arranque ----- */
 async function boot() {
   DATA = await (await fetch('/api/items')).json();
-  const navs = [['resumen', '◉', 'Resumen', '']].concat(
-    Object.entries(DATA.kinds).map(([k, v]) => [k, v.icon, v.label, DATA.counts[k]]));
+  const navs = [['resumen', '◉', 'Resumen', '']]
+    .concat(Object.entries(DATA.kinds).map(([k, v]) => [k, v.icon, v.label, DATA.counts[k]]))
+    .concat([['personas', '☻', 'Personas', '']]);
   $('#nav').innerHTML = navs.map(([k, ic, lab, n]) =>
     '<div class="nav" data-v="' + k + '"><span class="ic">' + ic + '</span>' + lab +
     (n === '' ? '' : '<span class="n">' + n + '</span>') + '</div>').join('');
   $('#nav').onclick = (e) => { const el = e.target.closest('.nav'); if (el) go(el.dataset.v); };
   go('resumen');
 }
-function go(v) { view = v; cur = null;
+function go(v) { view = v; cur = null; personaAbierta = null;
   document.querySelectorAll('.nav').forEach((e) => e.classList.toggle('on', e.dataset.v === v));
-  v === 'resumen' ? renderResumen() : renderList(v); window.scrollTo(0, 0); $('#main').scrollTop = 0; }
+  if (v === 'resumen') renderResumen();
+  else if (v === 'personas') renderPersonas();
+  else renderList(v);
+  window.scrollTo(0, 0); $('#main').scrollTop = 0; }
 
 /* ----- resumen ----- */
 function renderResumen() {
@@ -61,6 +66,106 @@ function copyHandler(e) {
   });
 }
 
+/* ----- personas ----- */
+
+const inicial = (n) => (n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+async function renderPersonas(repo) {
+  $('#main').innerHTML = '<h1>Personas</h1><p class="lede">Leyendo el historial del repositorio…</p>';
+  PEOPLE = await (await fetch('/api/people' + (repo ? '?repo=' + encodeURIComponent(repo) : ''))).json();
+  const { people, repos, repoLabel, piezas, sinHistorial } = PEOPLE;
+
+  let h = '<h1>Personas</h1><p class="lede">Quién ha construido la configuración de este repositorio: ' +
+    'qué creó cada uno y qué ha tocado después. Sale del historial de git, así que sólo cubre lo versionado.</p>';
+
+  if (repos.length > 1) {
+    h += '<div class="card"><label>Repositorio</label><select id="repoSel">' + repos.map((r) =>
+      '<option value="' + esc(r.repo) + '"' + (r.repo === PEOPLE.repo ? ' selected' : '') + '>' +
+      esc(r.label) + ' · ' + r.items + ' piezas</option>').join('') + '</select></div>';
+  }
+
+  if (!people.length) {
+    return ($('#main').innerHTML = h + '<div class="card"><div class="desc">Ninguna pieza de ' +
+      esc(repoLabel || 'este ámbito') + ' está versionada, así que no hay autoría que mostrar.</div></div>');
+  }
+
+  h += '<h2 class="sec">' + esc(repoLabel) + ' · ' + piezas + ' piezas · ' + people.length + ' personas</h2>';
+  for (const p of people) {
+    const porTipo = (lista) => {
+      const c = {};
+      for (const x of lista) c[x.kind] = (c[x.kind] || 0) + 1;
+      return Object.entries(c).sort((a, b) => b[1] - a[1])
+        .map(([k, n]) => '<span class="tag">' + DATA.kinds[k].icon + ' ' + n + ' ' + esc(DATA.kinds[k].label.toLowerCase()) + '</span>').join(' ');
+    };
+    h += '<div class="card clk" data-persona="' + esc(p.id) + '">' +
+      '<div class="ttl"><span class="avatar">' + esc(inicial(p.name)) + '</span>' + esc(p.name) +
+      '<span class="tag acc">' + p.created.length + ' creadas</span>' +
+      (p.modified.length ? '<span class="tag">' + p.modified.length + ' tocadas</span>' : '') +
+      '<span class="tag">' + p.commits + ' commits</span></div>' +
+      '<div class="desc" style="margin:8px 0 6px">Creó: ' + (porTipo(p.created) || '<i>nada</i>') + '</div>' +
+      (p.modified.length ? '<div class="desc" style="margin-bottom:6px">Tocó: ' + porTipo(p.modified) + '</div>' : '') +
+      '<div class="desc">Del ' + fecha(p.first) + ' al ' + fecha(p.last) + ' · ' +
+      p.emails.map((e) => '<code>' + esc(e) + '</code>').join(' ') +
+      (p.names.length > 1 ? ' · firma como ' + p.names.map(esc).join(', ') : '') + '</div></div>';
+  }
+
+  if (sinHistorial) {
+    h += '<div class="card"><div class="desc">' + sinHistorial + ' piezas quedan fuera de este recuento ' +
+      'porque no están en ningún repositorio (las de <code>~/.claude</code>) o están en <code>.gitignore</code> ' +
+      '(los <code>settings.local.json</code>). De esas no hay autoría que recuperar.</div></div>';
+  }
+
+  $('#main').innerHTML = h;
+  const sel = $('#repoSel');
+  if (sel) sel.onchange = () => renderPersonas(sel.value);
+  $('#main').onclick = (e) => {
+    const c = e.target.closest('[data-persona]');
+    if (c) return renderPersona(c.dataset.persona);
+  };
+}
+
+function renderPersona(id) {
+  const p = PEOPLE.people.find((x) => x.id === id);
+  if (!p) return renderPersonas(PEOPLE.repo);
+  personaAbierta = id;
+
+  const grupo = (titulo, lista, vacio) => {
+    if (!lista.length) return '<h2 class="sec">' + titulo + '</h2><div class="card"><div class="desc">' + vacio + '</div></div>';
+    const porTipo = {};
+    for (const x of lista) (porTipo[x.kind] ??= []).push(x);
+    let out = '<h2 class="sec">' + titulo + ' · ' + lista.length + '</h2>';
+    for (const [k, xs] of Object.entries(porTipo)) {
+      out += '<div class="card"><div class="ttl">' + DATA.kinds[k].icon + ' ' + esc(DATA.kinds[k].label) +
+        '<span class="tag">' + xs.length + '</span></div><div class="rules" style="margin-top:10px">' +
+        xs.sort((a, b) => a.name.localeCompare(b.name)).map((x) => {
+          // La misma skill puede existir en dos paquetes del monorepo: sin el
+          // ámbito, el perfil enseña dos etiquetas idénticas.
+          const repetido = xs.filter((y) => y.name === x.name).length > 1;
+          const donde = repetido ? ' <span class="sc">' + esc(x.scope.split('/').slice(-2).join('/')) + '</span>' : '';
+          return '<span class="rule clk" data-id="' + esc(x.id) + '" style="cursor:pointer">' + esc(x.name) + donde + '</span>';
+        }).join('') +
+        '</div></div>';
+    }
+    return out;
+  };
+
+  $('#main').innerHTML =
+    '<div class="back" data-volver>← Personas</div>' +
+    '<h1><span class="avatar big">' + esc(inicial(p.name)) + '</span>' + esc(p.name) + '</h1>' +
+    '<p class="lede">' + p.created.length + ' piezas creadas, ' + p.modified.length + ' tocadas después, ' +
+    p.commits + ' commits sobre la configuración. Del ' + fecha(p.first) + ' al ' + fecha(p.last) + '.</p>' +
+    '<div class="path">' + p.emails.map(esc).join(' · ') +
+    (p.names.length > 1 ? '<br>Firma como: ' + p.names.map(esc).join(', ') : '') + '</div>' +
+    grupo('Creó', p.created, 'No ha creado ninguna pieza en este repositorio.') +
+    grupo('Tocó después', p.modified, 'No ha modificado piezas de otros.');
+
+  $('#main').onclick = (e) => {
+    if (e.target.closest('[data-volver]')) return renderPersonas(PEOPLE.repo);
+    const c = e.target.closest('[data-id]');
+    if (c) return openItem(c.dataset.id);
+  };
+}
+
 /* ----- listados ----- */
 function renderList(kind) {
   const info = DATA.kinds[kind];
@@ -96,7 +201,7 @@ function renderItem() {
   const tabs = cur.format === 'json'
     ? [['ui', 'Vista'], ['raw', 'JSON']]
     : [['leer', 'Leer'], ['raw', 'Editar']];
-  let h = '<div class="back" data-back>← ' + esc(DATA.kinds[cur.kind].label) + '</div>' +
+  let h = '<div class="back" data-back>← ' + (personaAbierta ? 'Perfil' : esc(DATA.kinds[cur.kind].label)) + '</div>' +
     '<h1>' + esc(cur.title) + '</h1>' +
     (cur.description ? '<p class="lede">' + esc(cur.description) + '</p>' : '') +
     '<div class="path">' + esc(cur.displayPath) + '</div>' +
@@ -232,7 +337,10 @@ function jsonUI() {
 function wire() {
   const main = $('#main');
   main.onclick = (e) => {
-    if (e.target.closest('[data-back]')) return go(cur.kind);
+    if (e.target.closest('[data-back]')) {
+      if (personaAbierta) return renderPersona(personaAbierta);
+      return go(cur.kind);
+    }
     const t = e.target.closest('.tab');
     if (t) { if (tab === 'raw') { const ta = $('#raw'); if (ta) text = ta.value; } tab = t.dataset.t; return renderItem(); }
     const d = e.target.closest('[data-del]');

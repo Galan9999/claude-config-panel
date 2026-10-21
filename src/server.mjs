@@ -6,7 +6,7 @@ import { BACKUPS, tilde } from './paths.mjs';
 import { read } from './fsutil.mjs';
 import { KIND_INFO } from './labels.mjs';
 import { discover } from './discover.mjs';
-import { fileHistory } from './history.mjs';
+import { fileHistory, repoIndex, buildPeople, mergeIdentities, clearIndexCache } from './history.mjs';
 
 const UI_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'ui');
 const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml' };
@@ -79,6 +79,26 @@ export function createPanelServer(options = {}) {
       return send(res, 200, {
         kinds: KIND_INFO, counts, items: state.items, skipped: state.skipped,
         scopes: [...new Set(state.items.map((i) => i.scope))],
+      });
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/people') {
+      clearIndexCache();
+      // Un repo cada vez: el historial de un monorepo es grande y mezclar repos
+      // en el mismo perfil no dice nada útil.
+      const repos = [...new Set(state.items.filter((i) => i.repo).map((i) => i.repo))]
+        .map((repo) => ({ repo, label: tilde(repo), items: state.items.filter((i) => i.repo === repo).length }))
+        .sort((a, b) => b.items - a.items);
+      const chosen = url.searchParams.get('repo') || (repos[0] && repos[0].repo);
+      const items = state.items.filter((i) => i.repo === chosen && i.relPath);
+      const paths = [...new Set(items.map((i) => i.relPath))];
+      const index = paths.length ? repoIndex(chosen, paths) : new Map();
+      return send(res, 200, {
+        repos, repo: chosen, repoLabel: chosen ? tilde(chosen) : null,
+        people: mergeIdentities(buildPeople(items, () => index)),
+        piezas: items.length,
+        // Las piezas fuera de git no tienen autoría: se dice, no se reparte.
+        sinHistorial: state.items.filter((i) => !i.repo || !i.relPath).length,
       });
     }
 

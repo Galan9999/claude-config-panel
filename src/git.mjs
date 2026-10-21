@@ -3,6 +3,7 @@ import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const remotes = new Map();
+const roots = new Map();
 
 function git(repo, args) {
   return execFileSync('git', ['-C', repo, ...args], {
@@ -22,7 +23,23 @@ export function gitRemote(repo) {
   return web;
 }
 
-export function clearRemoteCache() { remotes.clear(); }
+export function clearRemoteCache() { remotes.clear(); roots.clear(); }
+
+/**
+ * Raíz del repositorio que contiene `dir`, o null.
+ *
+ * Importa más de lo que parece: en un monorepo, `apps/web/.claude` es un
+ * proyecto a efectos del panel pero NO un repo. Y `git log --numstat` imprime
+ * las rutas relativas a la raíz, así que para cruzar historial con ficheros hay
+ * que hablar en coordenadas de la raíz, no de la carpeta del paquete.
+ */
+export function repoRoot(dir) {
+  if (roots.has(dir)) return roots.get(dir);
+  let root = null;
+  try { root = git(dir, ['rev-parse', '--show-toplevel']) || null; } catch { /* no es repo */ }
+  roots.set(dir, root);
+  return root;
+}
 
 /**
  * Un worktree enlazado tiene .git como FICHERO, no como carpeta. Su configuración
