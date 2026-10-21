@@ -4,14 +4,14 @@ import { explain } from './permissions.js';
 import { md } from './markdown.js';
 
 let DATA = null, view = 'resumen', cur = null, text = '', orig = '', tab = 'ui';
-let PEOPLE = null, personaAbierta = null;
+let PEOPLE = null, personaAbierta = null, FLOWS = null;
 
 /* ----- arranque ----- */
 async function boot() {
   DATA = await (await fetch('/api/items')).json();
   const navs = [['resumen', '◉', 'Resumen', '']]
     .concat(Object.entries(DATA.kinds).map(([k, v]) => [k, v.icon, v.label, DATA.counts[k]]))
-    .concat([['personas', '☻', 'Personas', '']]);
+    .concat([['flujos', '⇢', 'Flujos', ''], ['personas', '☻', 'Personas', '']]);
   $('#nav').innerHTML = navs.map(([k, ic, lab, n]) =>
     '<div class="nav" data-v="' + k + '"><span class="ic">' + ic + '</span>' + lab +
     (n === '' ? '' : '<span class="n">' + n + '</span>') + '</div>').join('');
@@ -22,6 +22,7 @@ function go(v) { view = v; cur = null; personaAbierta = null;
   document.querySelectorAll('.nav').forEach((e) => e.classList.toggle('on', e.dataset.v === v));
   if (v === 'resumen') renderResumen();
   else if (v === 'personas') renderPersonas();
+  else if (v === 'flujos') renderFlujos();
   else renderList(v);
   window.scrollTo(0, 0); $('#main').scrollTop = 0; }
 
@@ -64,6 +65,79 @@ function copyHandler(e) {
     const old = p.style.borderColor; p.style.borderColor = 'var(--ok)';
     setTimeout(() => { p.style.borderColor = old; }, 700);
   });
+}
+
+/* ----- flujos ----- */
+
+async function renderFlujos() {
+  $('#main').innerHTML = '<h1>Flujos</h1><p class="lede">Leyendo los comandos…</p>';
+  FLOWS = await (await fetch('/api/flows')).json();
+  const { flows, desvios } = FLOWS;
+
+  let h = '<h1>Flujos</h1><p class="lede">Secuencias de comandos numerados que forman un pipeline. ' +
+    'Esto no es una explicación escrita a mano: sale de los propios ficheros, así que no puede quedarse ' +
+    'desfasada respecto a lo que de verdad se ejecuta.</p>';
+
+  if (!flows.length) {
+    h += '<div class="card"><div class="desc">No hay comandos numerados. Un flujo se detecta cuando una ' +
+      'carpeta de comandos tiene varios ficheros <code>N.nombre.md</code>.</div></div>';
+  }
+
+  for (const f of flows) {
+    h += '<h2 class="sec">/' + esc(f.folder) + ':* · ' + esc(f.scope.split('/').slice(-2).join('/')) +
+      ' · ' + f.phases.length + ' fases</h2>';
+    for (const p of f.phases) {
+      h += '<div class="card"><div class="ttl">' +
+        '<span class="paso">' + p.order + '</span>/' + esc(f.folder) + ':' + esc(p.slug) +
+        (p.model ? '<span class="tag acc">' + esc(p.model) + '</span>' : '') +
+        '<span class="tag">' + p.tools.length + ' herramientas</span>' +
+        (p.agents ? '<span class="tag">lanza subagentes</span>' : '') + '</div>' +
+        '<div class="desc" style="margin-top:6px">' + esc(p.title) + '</div>' +
+        (p.hint ? '<div class="desc" style="margin-top:5px"><code>' + esc(p.hint) + '</code></div>' : '');
+      if (p.invoca.length) {
+        h += '<div class="desc" style="margin-top:9px">Invoca: ' + p.invoca.map((a) =>
+          '<span class="rule clk" data-id="' + esc(a.id) + '" style="cursor:pointer">◇ ' + esc(a.name) + '</span>').join(' ') + '</div>';
+      }
+      if (p.outward.length) {
+        h += '<div class="desc" style="margin-top:9px">Puede actuar fuera sin preguntar: ' +
+          p.outward.map((t) => '<span class="rule" style="border-color:var(--err);color:var(--err)">' +
+            esc(t.split('__').slice(2).join('__')) + '</span>').join(' ') + '</div>';
+      }
+      h += '<div class="row" style="margin-top:11px"><span class="rule clk" data-id="' + esc(p.id) +
+        '" style="cursor:pointer">Ver el comando</span></div></div>';
+    }
+    if (f.docs.length) {
+      h += '<div class="card"><div class="ttl">Documentación del flujo</div>' +
+        '<div class="desc">La prosa vive aquí, y manda sobre cualquier diagrama. El panel la enlaza, no la copia.</div>' +
+        '<div class="rules" style="margin-top:10px">' + f.docs.map((d) =>
+          '<span class="rule clk" data-id="' + esc(d.id) + '" style="cursor:pointer">' + esc(d.name) + '</span>').join('') +
+        '</div></div>';
+    }
+  }
+
+  const rotos = desvios.filter((d) => d.tipo === 'comando-inexistente');
+  const rutas = desvios.filter((d) => d.tipo === 'ruta-inexistente');
+  h += '<h2 class="sec">Desvíos · ' + desvios.length + '</h2>';
+  if (!desvios.length) {
+    h += '<div class="card"><div class="desc">Todo lo que citan los comandos y la documentación existe.</div></div>';
+  }
+  if (rotos.length) {
+    h += '<div class="card"><div class="ttl">Comandos citados que no existen<span class="tag err">' + rotos.length + '</span></div>' +
+      '<div class="desc" style="margin-bottom:8px">Documentación que describe algo que ya no se puede ejecutar. ' +
+      'Es lo que convierte un README en una trampa.</div><table><tr><th>Cita</th><th>Dónde</th></tr>' +
+      rotos.map((d) => '<tr><td class="cmd">' + esc(d.que) + '</td><td class="cmd clk" data-id="' + esc(d.id) +
+        '" style="cursor:pointer">' + esc(d.donde) + '</td></tr>').join('') + '</table></div>';
+  }
+  if (rutas.length) {
+    h += '<div class="card"><div class="ttl">Rutas citadas que no están<span class="tag warn">' + rutas.length + '</span></div>' +
+      '<div class="desc" style="margin-bottom:8px">Ojo: algunas las genera el propio flujo al ejecutarse, ' +
+      'así que no todas son un error. Las carpetas ya se descartan.</div><table><tr><th>Ruta</th><th>Citada en</th></tr>' +
+      rutas.map((d) => '<tr><td class="cmd">' + esc(d.que) + '</td><td class="cmd clk" data-id="' + esc(d.id) +
+        '" style="cursor:pointer">' + esc(d.donde) + '</td></tr>').join('') + '</table></div>';
+  }
+
+  $('#main').innerHTML = h;
+  $('#main').onclick = (e) => { const c = e.target.closest('[data-id]'); if (c) openItem(c.dataset.id); };
 }
 
 /* ----- personas ----- */
@@ -169,7 +243,7 @@ function renderPersona(id) {
 /* ----- listados ----- */
 function renderList(kind) {
   const info = DATA.kinds[kind];
-  const items = DATA.items.filter((i) => i.kind === kind);
+  const items = DATA.items.filter((i) => i.kind === kind && i.role !== 'doc');
   const groups = {};
   items.forEach((i) => { (groups[i.scope] ??= []).push(i); });
   let h = '<h1>' + info.label + '</h1><p class="lede">' + esc(info.blurb) + '</p>';

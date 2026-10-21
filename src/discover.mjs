@@ -4,6 +4,7 @@ import { CLAUDE, tilde } from './paths.mjs';
 import { ls, read, frontmatter, scriptDoc } from './fsutil.mjs';
 import { gitRemote, clearRemoteCache, isLinkedWorktree, repoRoot } from './git.mjs';
 import { describeConfig } from './labels.mjs';
+import { isFolderDoc } from './flows.mjs';
 
 /** Carpetas que nunca contienen configuración y cuestan caro de recorrer. */
 const SKIP = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'vendor', 'coverage', '.turbo', 'tmp']);
@@ -123,6 +124,9 @@ export function discover({ scanRoots = [], withWorktrees = false, depth = DEFAUL
     it.displayPath = tilde(it.path);
     // `project` es la carpeta con .claude/; `repo` es la raíz de git, que en un
     // monorepo no son la misma: apps/web es proyecto pero no repo.
+    // Un _README.md dentro de una carpeta de comandos documenta el flujo; no es
+    // algo que se pueda invocar.
+    if (it.kind === 'command' && isFolderDoc(it.name)) it.role = 'doc';
     it.project = it.repo;
     it.repo = it.repo ? repoRoot(it.repo) : null;
     it.remote = it.repo ? gitRemote(it.repo) : null;

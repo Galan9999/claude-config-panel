@@ -52,6 +52,14 @@ npx claude-config-panel ~/mis-repos
   quién la ha tocado después, cuántas líneas cambió cada commit y enlace al
   commit en GitHub. De lo que no está en git —`~/.claude`, los
   `settings.local.json`— lo dice claramente en vez de inventar un autor.
+- **Dibuja los flujos desde los ficheros.** Si una carpeta de comandos tiene
+  varios `N.nombre.md`, los pinta como el pipeline que son: orden, modelo de
+  cada fase, qué subagentes invoca y —lo que no se ve leyendo el flujo en
+  prosa— qué puede hacer cada fase **fuera de tu máquina sin preguntar**, sacado
+  de su `allowed-tools`. Y marca los desvíos: comandos citados en la
+  documentación que ya no existen, y rutas que se mencionan y no están. No
+  copia la documentación: la enlaza, porque un flujo contado en dos sitios
+  acaba con una versión obsoleta que nadie sabe que lo está.
 - **Tiene perfil por persona.** Quién ha construido la configuración de un repo:
   qué creó cada uno, qué tocó después y cuántos commits lleva. Unifica al mismo
   humano aunque commitee con varios correos — el del trabajo, el
@@ -144,7 +152,7 @@ Node: el servidor es `node:http` y las pruebas son `node:test`.
 git clone https://github.com/Galan9999/claude-config-panel
 cd claude-config-panel
 npm start      # arranca el panel
-npm test       # 78 pruebas
+npm test       # 94 pruebas
 ```
 
 ### Estructura
@@ -157,6 +165,7 @@ src/
   fsutil.mjs     Lectura tolerante, frontmatter, doc de scripts
   git.mjs        Remoto de GitHub y detección de worktrees
   history.mjs    Autoría y cambios de cada pieza, con git log
+  flows.mjs      Pipelines de comandos numerados y detección de desvíos
   labels.mjs     Los nombres en castellano de cada pieza
   discover.mjs   Recorrido del disco y catálogo de piezas
   server.mjs     Rutas HTTP, guardado y copias de seguridad

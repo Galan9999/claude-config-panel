@@ -93,3 +93,6 @@ pre.copy{background:var(--panel2);border:1px solid var(--line);border-radius:7px
   background:var(--accsoft);color:var(--acc2);font-size:11px;font-weight:600;letter-spacing:.3px;flex:0 0 26px}
 .avatar.big{width:36px;height:36px;font-size:14px;margin-right:10px;vertical-align:-7px}
 .rule.clk:hover{border-color:var(--acc);color:var(--acc2)}
+
+.paso{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;
+  background:var(--acc);color:#fff;font-size:12px;font-weight:600;flex:0 0 22px}

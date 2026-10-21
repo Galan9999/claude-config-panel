@@ -1,12 +1,14 @@
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, copyFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, extname, dirname } from 'node:path';
+import { existsSync as hayFichero } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { BACKUPS, tilde } from './paths.mjs';
 import { read } from './fsutil.mjs';
 import { KIND_INFO } from './labels.mjs';
 import { discover } from './discover.mjs';
 import { fileHistory, repoIndex, buildPeople, mergeIdentities, clearIndexCache } from './history.mjs';
+import { groupFlows, parseTools, findCommandRefs, findConfigPaths, brokenRefs, isFolderDoc } from './flows.mjs';
 
 const UI_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'ui');
 const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml' };
@@ -80,6 +82,48 @@ export function createPanelServer(options = {}) {
         kinds: KIND_INFO, counts, items: state.items, skipped: state.skipped,
         scopes: [...new Set(state.items.map((i) => i.scope))],
       });
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/flows') {
+      const commands = state.items.filter((i) => i.kind === 'command');
+      const known = new Set(commands.map((i) => i.name));
+      const agentes = state.items.filter((i) => i.kind === 'agent');
+
+      const flows = groupFlows(commands).map((f) => ({
+        folder: f.folder,
+        scope: f.scope,
+        docs: f.docs.map((d) => ({ id: d.id, name: d.name, path: d.displayPath })),
+        phases: f.phases.map(({ order, slug, item }) => {
+          const texto = read(item.path);
+          const t = parseTools(item.meta && item.meta['allowed-tools']);
+          return {
+            order, slug, id: item.id, name: item.name,
+            title: (item.meta && item.meta.description) || item.description || '',
+            model: (item.meta && item.meta.model) || null,
+            hint: (item.meta && item.meta['argument-hint']) || null,
+            ...t,
+            // Qué agentes del repo menciona esta fase por su nombre.
+            invoca: agentes.filter((a) => a.repo === item.repo && texto.includes(a.name))
+              .map((a) => ({ id: a.id, name: a.name })),
+          };
+        }),
+      }));
+
+      // Desvíos: lo que la documentación o las fases citan y ya no existe.
+      const desvios = [];
+      for (const it of state.items) {
+        if (it.format !== 'md' || !it.repo) continue;
+        const texto = read(it.path);
+        for (const ref of brokenRefs(findCommandRefs(texto), known)) {
+          desvios.push({ tipo: 'comando-inexistente', id: it.id, donde: it.displayPath, que: '/' + ref });
+        }
+        for (const ruta of findConfigPaths(texto)) {
+          if (!hayFichero(join(it.repo, ruta))) {
+            desvios.push({ tipo: 'ruta-inexistente', id: it.id, donde: it.displayPath, que: ruta });
+          }
+        }
+      }
+      return send(res, 200, { flows, desvios });
     }
 
     if (req.method === 'GET' && url.pathname === '/api/people') {
