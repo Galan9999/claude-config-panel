@@ -149,48 +149,38 @@ async function renderDiagnostico() {
  * encoger la letra hasta no leerse en un panel estrecho.
  */
 function diagramaFlujo(f) {
-  const W = 470, ALTO = 62, HUECO = 30, M = 12;
+  const W = 420, ALTO = 34, HUECO = 14, M = 8;
   const alto = f.phases.length * ALTO + (f.phases.length - 1) * HUECO + M * 2;
   const esGate = (p) => /\bgate\b/i.test(p.title);
 
-  // Sin atributo height: con width 100% el viewBox manda y la caja no deja hueco.
   let svg = '<svg viewBox="0 0 ' + W + ' ' + alto + '" width="100%" ' +
     'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama del flujo /' + esc(f.folder) + '">' +
-    '<defs><marker id="pta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">' +
+    '<defs><marker id="pta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">' +
     '<path d="M0,0 L10,5 L0,10 z" fill="var(--line2)"/></marker></defs>';
 
   f.phases.forEach((p, i) => {
     const y = M + i * (ALTO + HUECO);
+    const mitad = y + ALTO / 2;
     const gate = esGate(p);
     svg += '<g data-id="' + esc(p.id) + '" style="cursor:pointer">' +
-      '<rect x="1" y="' + y + '" rx="10" width="' + (W - 2) + '" height="' + ALTO + '" ' +
-      'fill="var(--panel)" stroke="' + (gate ? 'var(--warn)' : 'var(--line2)') + '" stroke-width="' + (gate ? 2 : 1) + '"/>' +
-      '<circle cx="28" cy="' + (y + ALTO / 2) + '" r="13" fill="var(--acc)"/>' +
-      '<text x="28" y="' + (y + ALTO / 2 + 4) + '" text-anchor="middle" font-size="12.5" font-weight="700" fill="#fff">' + p.order + '</text>' +
-      '<text x="52" y="' + (y + 25) + '" font-size="13.5" font-weight="600" fill="var(--tx)">/' + esc(f.folder) + ':' + esc(p.slug) + '</text>' +
-      (p.model ? '<text x="' + (W - 14) + '" y="' + (y + 25) + '" text-anchor="end" font-size="11.5" ' +
+      '<rect x="1" y="' + y + '" rx="7" width="' + (W - 2) + '" height="' + ALTO + '" ' +
+      'fill="var(--panel)" stroke="' + (gate ? 'var(--warn)' : 'var(--line2)') + '" stroke-width="' + (gate ? 1.5 : 1) + '"/>' +
+      '<circle cx="19" cy="' + mitad + '" r="9" fill="var(--acc)"/>' +
+      '<text x="19" y="' + (mitad + 3.5) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">' + p.order + '</text>' +
+      '<text x="36" y="' + (mitad + 4) + '" font-size="12" font-weight="600" fill="var(--tx)">/' +
+      esc(f.folder) + ':' + esc(p.slug) + '</text>' +
+      (p.outward.length ? '<text x="' + (W - 86) + '" y="' + (mitad + 4) + '" text-anchor="end" font-size="10" ' +
+        'fill="var(--err)">↗' + p.outward.length + '</text>' : '') +
+      (gate ? '<text x="' + (W - 56) + '" y="' + (mitad + 4) + '" text-anchor="end" font-size="9.5" fill="var(--warn)">gate</text>' : '') +
+      (p.model ? '<text x="' + (W - 10) + '" y="' + (mitad + 4) + '" text-anchor="end" font-size="10" ' +
         'font-family="ui-monospace,monospace" fill="var(--acc2)">' + esc(p.model) + '</text>' : '') +
-      '<text x="52" y="' + (y + 45) + '" font-size="11.5" fill="var(--dim)">' +
-      esc(resumen(p.title, 46)) + '</text>' +
-      (gate ? '<text x="' + (W - 14) + '" y="' + (y + 45) + '" text-anchor="end" font-size="10.5" fill="var(--warn)">gate</text>' : '') +
       '</g>';
 
     if (i < f.phases.length - 1) {
-      const y1 = y + ALTO, y2 = y + ALTO + HUECO;
-      svg += '<line x1="28" y1="' + y1 + '" x2="28" y2="' + (y2 - 7) + '" stroke="var(--line2)" ' +
-        'stroke-width="1.5" marker-end="url(#pta)"/>';
-      const sale = p.outward.length;
-      if (sale) {
-        svg += '<text x="44" y="' + (y1 + HUECO / 2 + 4) + '" font-size="10.5" fill="var(--err)">' +
-          '↗ ' + sale + (sale === 1 ? ' acción fuera' : ' acciones fuera') + '</text>';
-      }
+      svg += '<line x1="19" y1="' + (y + ALTO) + '" x2="19" y2="' + (y + ALTO + HUECO - 4) + '" ' +
+        'stroke="var(--line2)" stroke-width="1.2" marker-end="url(#pta)"/>';
     }
   });
-  const ultima = f.phases.at(-1);
-  if (ultima.outward.length) {
-    svg += '<text x="44" y="' + (alto - 2) + '" font-size="10.5" fill="var(--err)">↗ ' +
-      ultima.outward.length + ' fuera</text>';
-  }
   return svg + '</svg>';
 }
 
