@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { HOME, tilde } from './paths.mjs';
-import { COMMON_ROOTS } from './discover.mjs';
+import { COMMON_ROOTS, DEFAULT_DEPTH } from './discover.mjs';
 
 export const USAGE = `Panel de Claude — ver y entender tu configuración de Claude Code
 
@@ -10,6 +10,7 @@ export const USAGE = `Panel de Claude — ver y entender tu configuración de Cl
 Opciones:
   --port <n>     Puerto donde escuchar (por defecto 7337)
   --worktrees    Incluye los worktrees enlazados, omitidos por defecto
+  --depth <n>    Niveles a bajar buscando carpetas .claude (por defecto 5)
   -h, --help     Esta ayuda
   -v, --version  Versión
 
@@ -26,12 +27,14 @@ export function defaultRoots(home = HOME) {
 }
 
 export function parseArgs(argv, env = {}) {
-  const opts = { port: 7337, withWorktrees: false, help: false, version: false, scanRoots: [] };
+  const opts = { port: 7337, withWorktrees: false, depth: DEFAULT_DEPTH,
+    help: false, version: false, scanRoots: [] };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--port') { opts.port = Number(argv[++i]); continue; }
     if (a === '--worktrees') { opts.withWorktrees = true; continue; }
+    if (a === '--depth') { opts.depth = Number(argv[++i]); continue; }
     if (a === '-h' || a === '--help') { opts.help = true; continue; }
     if (a === '-v' || a === '--version') { opts.version = true; continue; }
     if (a.startsWith('-')) throw new Error('Opción desconocida: ' + a);
@@ -39,6 +42,9 @@ export function parseArgs(argv, env = {}) {
   }
   if (!Number.isInteger(opts.port) || opts.port < 1 || opts.port > 65535) {
     throw new Error('Puerto inválido: usa un número entre 1 y 65535');
+  }
+  if (!Number.isInteger(opts.depth) || opts.depth < 1 || opts.depth > 12) {
+    throw new Error('Profundidad inválida: usa un número entre 1 y 12');
   }
   opts.scanRoots = rest.length ? rest
     : (env.CLAUDE_CFG_ROOTS ? env.CLAUDE_CFG_ROOTS.split(':') : defaultRoots());

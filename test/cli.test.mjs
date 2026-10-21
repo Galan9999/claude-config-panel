@@ -35,3 +35,13 @@ test('--worktrees y --help se reconocen', () => {
   assert.equal(parseArgs(['--worktrees'], {}).withWorktrees, true);
   assert.equal(parseArgs(['-h'], {}).help, true);
 });
+
+test('profundidad por defecto y --depth', () => {
+  assert.equal(parseArgs([], {}).depth, 5);
+  assert.equal(parseArgs(['--depth', '7'], {}).depth, 7);
+});
+
+test('una profundidad absurda falla', () => {
+  assert.throws(() => parseArgs(['--depth', '0'], {}), /Profundidad inválida/);
+  assert.throws(() => parseArgs(['--depth', '99'], {}), /Profundidad inválida/);
+});

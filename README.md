@@ -30,6 +30,7 @@ npx claude-config-panel ~/mis-repos
 |---|---|
 | `--port <n>` | Puerto donde escuchar (por defecto 7337) |
 | `--worktrees` | Incluye los worktrees enlazados, que por defecto se omiten porque duplican la config de su repo |
+| `--depth <n>` | Niveles a bajar buscando carpetas `.claude` (por defecto 5, suficiente para `<repo>/apps/<paquete>` de un monorepo) |
 | `--help` | Ayuda |
 | `CLAUDE_CFG_ROOTS=/a:/b` | Carpetas donde buscar, por variable de entorno |
 
@@ -133,7 +134,7 @@ Node: el servidor es `node:http` y las pruebas son `node:test`.
 git clone https://github.com/Galan9999/claude-config-panel
 cd claude-config-panel
 npm start      # arranca el panel
-npm test       # 53 pruebas
+npm test       # 55 pruebas
 ```
 
 ### Estructura

@@ -12,16 +12,32 @@ const SKIP = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'vendor'
 export const COMMON_ROOTS = ['Desktop/dades', 'code', 'dev', 'projects', 'proyectos',
   'src', 'repos', 'work', 'Desktop', 'Documents'];
 
-/** Busca carpetas `.claude/` hasta `depth` niveles por debajo de `dir`. */
-export function findProjects(dir, depth, out = []) {
-  if (depth < 0) return out;
+/** Cuántos niveles bajamos por defecto. 4 no bastan: en un monorepo la config
+ *  de un paquete vive en `<repo>/apps/<paquete>/.claude`, que son 4 desde la
+ *  carpeta que contiene los repos. */
+export const DEFAULT_DEPTH = 5;
+
+/**
+ * Busca carpetas `.claude/` hasta `depth` niveles por debajo de `dir`.
+ *
+ * Un proyecto puede contener otros: encontrar `.claude` en un repo no impide
+ * seguir bajando, porque los paquetes de un monorepo tienen la suya. Lo que sí
+ * se corta son los worktrees enlazados, y se cortan enteros: si no, cada uno
+ * aportaría además una copia de la config de cada paquete que contiene.
+ *
+ * @returns {{projects: string[], worktrees: string[]}}
+ */
+export function findProjects(dir, depth, { withWorktrees = false } = {},
+  acc = { projects: [], worktrees: [] }) {
+  if (depth < 0) return acc;
   for (const e of ls(dir)) {
     if (!e.isDirectory() || SKIP.has(e.name)) continue;
     const full = join(dir, e.name);
-    if (e.name === '.claude') { out.push(dirname(full)); continue; }
-    findProjects(full, depth - 1, out);
+    if (e.name === '.claude') { acc.projects.push(dirname(full)); continue; }
+    if (isLinkedWorktree(full) && !withWorktrees) { acc.worktrees.push(full); continue; }
+    findProjects(full, depth - 1, { withWorktrees }, acc);
   }
-  return out;
+  return acc;
 }
 
 /** Lee una carpeta de skills/agentes/comandos, en sus dos formas habituales. */
@@ -84,17 +100,21 @@ function collectScope(base, scope, repo, isGlobal, items) {
  * Recorre la configuración global y la de cada proyecto bajo `scanRoots`.
  * @returns {{items: object[], skipped: string[]}}
  */
-export function discover({ scanRoots = [], withWorktrees = false } = {}) {
+export function discover({ scanRoots = [], withWorktrees = false, depth = DEFAULT_DEPTH } = {}) {
   clearRemoteCache();
-  const items = [], skipped = [];
+  const items = [];
+  const projects = new Set(), skipped = new Set();
   collectScope(CLAUDE, 'Global', null, true, items);
 
-  const projects = new Set();
-  for (const root of scanRoots) findProjects(root, 3).forEach((p) => projects.add(p));
+  for (const root of scanRoots) {
+    const acc = findProjects(root, depth, { withWorktrees });
+    acc.projects.forEach((p) => projects.add(p));
+    acc.worktrees.forEach((p) => skipped.add(tilde(p)));
+  }
 
   for (const proj of [...projects].sort()) {
     const worktree = isLinkedWorktree(proj);
-    if (worktree && !withWorktrees) { skipped.push(tilde(proj)); continue; }
+    if (worktree && !withWorktrees) { skipped.add(tilde(proj)); continue; }
     collectScope(proj, tilde(proj) + (worktree ? '  (worktree)' : ''), proj, false, items);
   }
 
@@ -105,5 +125,5 @@ export function discover({ scanRoots = [], withWorktrees = false } = {}) {
     it.relPath = it.repo ? relative(it.repo, it.path) : null;
     try { const s = statSync(it.path); it.size = s.size; it.mtime = s.mtime.toISOString(); } catch { /* ya no está */ }
   });
-  return { items, skipped };
+  return { items, skipped: [...skipped].sort() };
 }
