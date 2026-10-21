@@ -69,6 +69,66 @@ function copyHandler(e) {
 
 /* ----- flujos ----- */
 
+/**
+ * Diagrama del pipeline, en SVG hecho a mano.
+ *
+ * Nada de Mermaid: traerlo significaría un CDN, y el panel no carga nada de
+ * fuera. En vertical y no en horizontal porque siete fases en una fila obligan a
+ * encoger la letra hasta no leerse en un panel estrecho.
+ */
+function diagramaFlujo(f) {
+  const W = 470, ALTO = 62, HUECO = 30, M = 12;
+  const alto = f.phases.length * ALTO + (f.phases.length - 1) * HUECO + M * 2;
+  const esGate = (p) => /\bgate\b/i.test(p.title);
+
+  // Sin atributo height: con width 100% el viewBox manda y la caja no deja hueco.
+  let svg = '<svg viewBox="0 0 ' + W + ' ' + alto + '" width="100%" ' +
+    'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama del flujo /' + esc(f.folder) + '">' +
+    '<defs><marker id="pta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">' +
+    '<path d="M0,0 L10,5 L0,10 z" fill="var(--line2)"/></marker></defs>';
+
+  f.phases.forEach((p, i) => {
+    const y = M + i * (ALTO + HUECO);
+    const gate = esGate(p);
+    svg += '<g data-id="' + esc(p.id) + '" style="cursor:pointer">' +
+      '<rect x="1" y="' + y + '" rx="10" width="' + (W - 2) + '" height="' + ALTO + '" ' +
+      'fill="var(--panel)" stroke="' + (gate ? 'var(--warn)' : 'var(--line2)') + '" stroke-width="' + (gate ? 2 : 1) + '"/>' +
+      '<circle cx="28" cy="' + (y + ALTO / 2) + '" r="13" fill="var(--acc)"/>' +
+      '<text x="28" y="' + (y + ALTO / 2 + 4) + '" text-anchor="middle" font-size="12.5" font-weight="700" fill="#fff">' + p.order + '</text>' +
+      '<text x="52" y="' + (y + 25) + '" font-size="13.5" font-weight="600" fill="var(--tx)">/' + esc(f.folder) + ':' + esc(p.slug) + '</text>' +
+      (p.model ? '<text x="' + (W - 14) + '" y="' + (y + 25) + '" text-anchor="end" font-size="11.5" ' +
+        'font-family="ui-monospace,monospace" fill="var(--acc2)">' + esc(p.model) + '</text>' : '') +
+      '<text x="52" y="' + (y + 45) + '" font-size="11.5" fill="var(--dim)">' +
+      esc(resumen(p.title, 46)) + '</text>' +
+      (gate ? '<text x="' + (W - 14) + '" y="' + (y + 45) + '" text-anchor="end" font-size="10.5" fill="var(--warn)">gate</text>' : '') +
+      '</g>';
+
+    if (i < f.phases.length - 1) {
+      const y1 = y + ALTO, y2 = y + ALTO + HUECO;
+      svg += '<line x1="28" y1="' + y1 + '" x2="28" y2="' + (y2 - 7) + '" stroke="var(--line2)" ' +
+        'stroke-width="1.5" marker-end="url(#pta)"/>';
+      const sale = p.outward.length;
+      if (sale) {
+        svg += '<text x="44" y="' + (y1 + HUECO / 2 + 4) + '" font-size="10.5" fill="var(--err)">' +
+          '↗ ' + sale + (sale === 1 ? ' acción fuera' : ' acciones fuera') + '</text>';
+      }
+    }
+  });
+  const ultima = f.phases.at(-1);
+  if (ultima.outward.length) {
+    svg += '<text x="44" y="' + (alto - 2) + '" font-size="10.5" fill="var(--err)">↗ ' +
+      ultima.outward.length + ' fuera</text>';
+  }
+  return svg + '</svg>';
+}
+
+/** Corta un texto largo por la primera frase o por `max`. */
+function resumen(t, max) {
+  const limpio = String(t || '').replace(/^[^—-]*[—-]\s*/, '').trim();
+  const corte = limpio.split(/(?<=\.)\s/)[0];
+  return corte.length > max ? corte.slice(0, max - 1) + '…' : corte;
+}
+
 async function renderFlujos() {
   $('#main').innerHTML = '<h1>Flujos</h1><p class="lede">Leyendo los comandos…</p>';
   FLOWS = await (await fetch('/api/flows')).json();
@@ -85,7 +145,8 @@ async function renderFlujos() {
 
   for (const f of flows) {
     h += '<h2 class="sec">/' + esc(f.folder) + ':* · ' + esc(f.scope.split('/').slice(-2).join('/')) +
-      ' · ' + f.phases.length + ' fases</h2>';
+      ' · ' + f.phases.length + ' fases</h2>' +
+      '<div class="card diagrama">' + diagramaFlujo(f) + '</div>';
     for (const p of f.phases) {
       h += '<div class="card"><div class="ttl">' +
         '<span class="paso">' + p.order + '</span>/' + esc(f.folder) + ':' + esc(p.slug) +

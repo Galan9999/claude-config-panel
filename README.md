@@ -53,7 +53,9 @@ npx claude-config-panel ~/mis-repos
   commit en GitHub. De lo que no está en git —`~/.claude`, los
   `settings.local.json`— lo dice claramente en vez de inventar un autor.
 - **Dibuja los flujos desde los ficheros.** Si una carpeta de comandos tiene
-  varios `N.nombre.md`, los pinta como el pipeline que son: orden, modelo de
+  varios `N.nombre.md`, los pinta como el pipeline que son, con un diagrama SVG
+  generado al vuelo desde las propias fases —sin Mermaid ni ningún CDN— donde
+  cada caja lleva a su comando: orden, modelo de
   cada fase, qué subagentes invoca y —lo que no se ve leyendo el flujo en
   prosa— qué puede hacer cada fase **fuera de tu máquina sin preguntar**, sacado
   de su `allowed-tools`. Y marca los desvíos: comandos citados en la

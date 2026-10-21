@@ -96,3 +96,7 @@ pre.copy{background:var(--panel2);border:1px solid var(--line);border-radius:7px
 
 .paso{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;
   background:var(--acc);color:#fff;font-size:12px;font-weight:600;flex:0 0 22px}
+
+.diagrama{padding:10px 12px}
+.diagrama svg{display:block;width:100%;height:auto}
+.diagrama g:hover rect{stroke:var(--acc)}
