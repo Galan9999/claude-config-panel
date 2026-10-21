@@ -11,7 +11,8 @@ async function boot() {
   DATA = await (await fetch('/api/items')).json();
   const navs = [['resumen', '◉', 'Resumen', '']]
     .concat(Object.entries(DATA.kinds).map(([k, v]) => [k, v.icon, v.label, DATA.counts[k]]))
-    .concat([['flujos', '⇢', 'Flujos', ''], ['personas', '☻', 'Personas', '']]);
+    .concat([['flujos', '⇢', 'Flujos', ''], ['diagnostico', '✓', 'Diagnóstico', ''],
+      ['personas', '☻', 'Personas', '']]);
   $('#nav').innerHTML = navs.map(([k, ic, lab, n]) =>
     '<div class="nav" data-v="' + k + '"><span class="ic">' + ic + '</span>' + lab +
     (n === '' ? '' : '<span class="n">' + n + '</span>') + '</div>').join('');
@@ -23,6 +24,7 @@ function go(v) { view = v; cur = null; personaAbierta = null;
   if (v === 'resumen') renderResumen();
   else if (v === 'personas') renderPersonas();
   else if (v === 'flujos') renderFlujos();
+  else if (v === 'diagnostico') renderDiagnostico();
   else renderList(v);
   window.scrollTo(0, 0); $('#main').scrollTop = 0; }
 
@@ -65,6 +67,76 @@ function copyHandler(e) {
     const old = p.style.borderColor; p.style.borderColor = 'var(--ok)';
     setTimeout(() => { p.style.borderColor = old; }, 700);
   });
+}
+
+/* ----- diagnóstico ----- */
+
+const SEV = { alta: 'err', media: 'warn', baja: '' };
+
+async function renderDiagnostico() {
+  $('#main').innerHTML = '<h1>Diagnóstico</h1><p class="lede">Buscando informes de auditoría…</p>';
+  const { informes } = await (await fetch('/api/findings')).json();
+
+  let h = '<h1>Diagnóstico</h1><p class="lede">Lo que la auditoría dijo de esta configuración. ' +
+    'No lo calcula el panel: lo produce un auditor y se guarda en <code>.claude/audit/findings.json</code>. ' +
+    'Aquí sólo se lee y se enseña al lado de lo que hay.</p>';
+
+  if (!informes.length) {
+    h += '<div class="card"><div class="ttl">Todavía no hay ninguna auditoría</div>' +
+      '<div class="desc" style="margin-bottom:8px">Pídesela al agente <code>auditor-config</code> desde el repo ' +
+      'que quieras revisar. Escribe su informe en <code>.claude/audit/findings.json</code> y el panel lo recoge solo.</div>' +
+      copyBlock('Audita la configuración de Claude de este repo con el agente auditor-config. ' +
+        'Sólo lectura, informe primero.') + '</div>';
+    $('#main').innerHTML = h;
+    $('#main').onclick = copyHandler;
+    return;
+  }
+
+  for (const inf of informes) {
+    if (inf.errors.length) {
+      h += '<div class="card"><div class="ttl">' + esc(inf.repoLabel) + '<span class="tag err">inválido</span></div>' +
+        '<div class="desc">' + esc(inf.path) + ' no cumple el esquema: ' + esc(inf.errors.join('; ')) + '</div></div>';
+      continue;
+    }
+    const cuenta = { alta: 0, media: 0, baja: 0 };
+    inf.findings.forEach((f) => { cuenta[f.severity] += 1; });
+
+    h += '<h2 class="sec">' + esc(inf.repoLabel) + ' · ' + inf.findings.length + ' hallazgos</h2>' +
+      '<div class="hint"><b>Si sólo haces una cosa:</b> ' + esc(inf.summary) + '</div>' +
+      '<div class="card"><div class="desc">Auditado por <code>' + esc(inf.tool) + '</code> el ' +
+      fecha(inf.generatedAt) + ' · ' +
+      Object.entries(cuenta).filter(([, n]) => n).map(([s, n]) =>
+        '<span class="tag ' + SEV[s] + '">' + n + ' ' + s + '</span>').join(' ') + '</div></div>';
+
+    for (const f of inf.findings) {
+      h += '<div class="card"><div class="ttl"><span class="tag ' + SEV[f.severity] + '">' + esc(f.severity) + '</span>' +
+        esc(f.title) + '<span class="tag">' + esc(f.category) + '</span></div>' +
+        '<div class="desc" style="margin-top:6px">' + esc(f.what) + '</div>' +
+        '<div class="desc" style="margin-top:6px"><b>Qué hacer:</b> ' + esc(f.proposal) + '</div>' +
+        '<div class="desc" style="margin-top:8px"><code>' + esc(f.path) + (f.line ? ':' + f.line : '') + '</code>' +
+        (f.itemId ? ' <span class="rule clk" data-id="' + esc(f.itemId) + '" style="cursor:pointer">Ver la pieza</span>' : '') +
+        (f.autofix ? ' <span class="tag acc">arreglo mecánico</span>' : '') + '</div>' +
+        (f.notion ? '<div class="desc" style="margin-top:7px"><a href="' + esc(f.notion.url) +
+          '" target="_blank" rel="noopener">Hallazgo en Notion</a></div>' +
+          copyBlock('/lp:task --from-finding ' + f.notion.url) : '') +
+        '</div>';
+    }
+
+    if (inf.notChecked.length) {
+      h += '<div class="card"><div class="ttl">Lo que el auditor no pudo comprobar<span class="tag">' +
+        inf.notChecked.length + '</span></div><div class="desc" style="margin-bottom:8px">' +
+        'Está aquí a propósito: es la diferencia entre un informe honesto y uno que se lo inventa.</div><ul class="md">' +
+        inf.notChecked.map((n) => '<li style="color:var(--dim);font-size:13px;margin-bottom:6px">' + esc(n) + '</li>').join('') +
+        '</ul></div>';
+    }
+  }
+
+  $('#main').innerHTML = h;
+  $('#main').onclick = (e) => {
+    const c = e.target.closest('[data-id]');
+    if (c) return openItem(c.dataset.id);
+    copyHandler(e);
+  };
 }
 
 /* ----- flujos ----- */
@@ -343,6 +415,7 @@ function renderItem() {
     '<div class="tabs">' + tabs.map(([t, l]) =>
       '<div class="tab' + (tab === t ? ' on' : '') + '" data-t="' + t + '">' + l + '</div>').join('') + '</div>';
 
+  h += hallazgosDeLaPieza();
   if (tab === 'ui' && cur.format === 'json') h += jsonUI() + historial();
   else if (tab === 'leer') h += '<div class="md">' + md(text) + '</div>' + actions();
   else h += '<textarea id="raw" spellcheck="false">' + esc(text) + '</textarea>';
@@ -397,14 +470,10 @@ function historial() {
   return h;
 }
 
-function actions() {
-  let h = historial() + '<h2 class="sec">Acciones</h2>';
-  const label = DATA.kinds[cur.kind].one;
-  h += '<div class="card"><div class="ttl">Auditar con Claude</div>' +
-    '<div class="desc">Copia esto y pégalo en Claude Code: te dice si esta pieza se dispara cuando debe y si se solapa con otra.</div>' +
-    copyBlock('Audita ' + (cur.kind === 'skill' ? 'la skill' : 'el ' + label) + ' "' + cur.name + '" (' + cur.displayPath + '). ' +
-      'Mira si la descripción dispara en los casos reales, si se solapa con otra pieza, si el prompt es más largo de lo necesario ' +
-      'y qué obstáculos no está reportando. Informe primero, sin tocar nada.') + '</div>';
+/** La revisión del auditor, al lado de lo que hay. Va arriba del todo: es lo
+ *  primero que quieres saber al abrir una pieza, no una nota a pie de página. */
+function hallazgosDeLaPieza() {
+  let h = '';
   if (cur.hallazgos && cur.hallazgos.length) {
     h += '<div class="card"><div class="ttl">Hallazgos de la auditoría<span class="tag err">' +
       cur.hallazgos.length + '</span></div>' +
@@ -425,6 +494,17 @@ function actions() {
             'Lánzale la auditoría al agente <code>auditor-config</code> pidiéndole que publique.</div>') +
         '</div>').join('') + '</div>';
   }
+  return h;
+}
+
+function actions() {
+  let h = historial() + '<h2 class="sec">Acciones</h2>';
+  const label = DATA.kinds[cur.kind].one;
+  h += '<div class="card"><div class="ttl">Auditar con Claude</div>' +
+    '<div class="desc">Copia esto y pégalo en Claude Code: te dice si esta pieza se dispara cuando debe y si se solapa con otra.</div>' +
+    copyBlock('Audita ' + (cur.kind === 'skill' ? 'la skill' : 'el ' + label) + ' "' + cur.name + '" (' + cur.displayPath + '). ' +
+      'Mira si la descripción dispara en los casos reales, si se solapa con otra pieza, si el prompt es más largo de lo necesario ' +
+      'y qué obstáculos no está reportando. Informe primero, sin tocar nada.') + '</div>';
   if (cur.remote && cur.relPath) {
     const title = 'Mejorar ' + label + ': ' + cur.name;
     const bodyTxt = 'Fichero: ' + cur.relPath + '\n\nQué falla:\n- \n\nQué debería hacer:\n- \n';

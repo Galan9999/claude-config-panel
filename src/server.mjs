@@ -85,6 +85,25 @@ export function createPanelServer(options = {}) {
       });
     }
 
+    if (req.method === 'GET' && url.pathname === '/api/findings') {
+      const repos = [...new Set(state.items.filter((i) => i.repo).map((i) => i.repo))];
+      const informes = [];
+      for (const repo of repos) {
+        const { doc, errors, path } = loadFindings(repo);
+        if (!doc && !errors.length) continue;
+        // Cada hallazgo se enlaza con la pieza que lo origina, si la encontramos.
+        const findings = (doc ? doc.findings : []).map((f) => {
+          const pieza = state.items.find((i) => i.repo === repo && i.relPath === f.path);
+          return { ...f, itemId: pieza ? pieza.id : null, piezaNombre: pieza ? pieza.name : null };
+        });
+        informes.push({ repo, repoLabel: tilde(repo), path: tilde(path),
+          generatedAt: doc && doc.generatedAt, tool: doc && doc.tool,
+          summary: doc && doc.summary, notChecked: (doc && doc.notChecked) || [],
+          findings, errors });
+      }
+      return send(res, 200, { informes });
+    }
+
     if (req.method === 'GET' && url.pathname === '/api/flows') {
       const commands = state.items.filter((i) => i.kind === 'command');
       const known = new Set(commands.map((i) => i.name));

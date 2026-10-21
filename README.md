@@ -111,7 +111,11 @@ preparado en cada pieza, en "Auditar con Claude".
 ### El bucle: auditoría → hallazgo → ticket
 
 El panel enseña la revisión **al lado** de la pieza, sin modificarla: lo que hay
-a un lado, lo que el auditor dice al otro. De ahí no sale un PR automático, y es
+a un lado, lo que el auditor dice al otro. Hay además una sección
+**Diagnóstico** con el informe entero: los hallazgos ordenados por severidad,
+cada uno enlazado a la pieza que lo origina, y la lista de lo que el auditor
+**no** pudo comprobar, que es la diferencia entre un informe honesto y uno que
+rellena huecos. De ahí no sale un PR automático, y es
 deliberado. Un parche que se aplica solo invita a aceptarlo sin leerlo, que es lo
 contrario de lo que persigue esto.
 
