@@ -22,7 +22,7 @@ npx claude-config-panel
 Open <http://127.0.0.1:7337>. Node 18+. Nothing to install, no dependencies, runs only on your machine.
 
 <div align="center">
-  <img src="docs/overview.jpg" alt="Overview: every piece of Claude configuration grouped by type" width="820">
+  <img src="https://raw.githubusercontent.com/Galan9999/claude-config-panel/main/docs/overview.jpg" alt="Overview: every piece of Claude configuration grouped by type" width="820">
 </div>
 
 ---
@@ -54,7 +54,7 @@ Each rule is translated, and the ones that are wider than they look get flagged.
 | `mcp__…__slack_send_message` | Acts outward: can send or change something in that service. → `outbound` |
 
 <div align="center">
-  <img src="docs/permissions.jpg" alt="Permissions translated into plain language, with broad and outbound rules flagged" width="820">
+  <img src="https://raw.githubusercontent.com/Galan9999/claude-config-panel/main/docs/permissions.jpg" alt="Permissions translated into plain language, with broad and outbound rules flagged" width="820">
 </div>
 
 ### Surfaces what runs on its own
@@ -85,7 +85,7 @@ If your commands are not a sequence, the section tells you so and explains the c
 invents a flow that is not there.
 
 <div align="center">
-  <img src="docs/flows.jpg" alt="A four-phase command pipeline drawn from the command files" width="820">
+  <img src="https://raw.githubusercontent.com/Galan9999/claude-config-panel/main/docs/flows.jpg" alt="A four-phase command pipeline drawn from the command files" width="820">
 </div>
 
 It also flags **drift**: commands referenced in documentation that no longer exist, and paths
@@ -115,7 +115,7 @@ No automatic patches and no automatic PRs. A patch that applies itself invites y
 without reading it, which is the opposite of the point.
 
 <div align="center">
-  <img src="docs/diagnostics.jpg" alt="Audit findings with severity, what happens and what to do" width="820">
+  <img src="https://raw.githubusercontent.com/Galan9999/claude-config-panel/main/docs/diagnostics.jpg" alt="Audit findings with severity, what happens and what to do" width="820">
 </div>
 
 > The screenshots show a sample configuration, not a real one.
