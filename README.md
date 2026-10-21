@@ -21,6 +21,10 @@ npx claude-config-panel
 
 Open <http://127.0.0.1:7337>. Node 18+. Nothing to install, no dependencies, runs only on your machine.
 
+<div align="center">
+  <img src="docs/overview.jpg" alt="Overview: every piece of Claude configuration grouped by type" width="820">
+</div>
+
 ---
 
 ## Why
@@ -49,6 +53,10 @@ Each rule is translated, and the ones that are wider than they look get flagged.
 | `Bash(node *)` | …**Careful: that allows running any script**, so in practice it is a very broad grant. → `broad` |
 | `mcp__…__slack_send_message` | Acts outward: can send or change something in that service. → `outbound` |
 
+<div align="center">
+  <img src="docs/permissions.jpg" alt="Permissions translated into plain language, with broad and outbound rules flagged" width="820">
+</div>
+
 ### Surfaces what runs on its own
 
 Hooks and scheduled tasks in one table: what triggers them, what they run, with what time limit.
@@ -76,6 +84,10 @@ with whatever you name yours.
 If your commands are not a sequence, the section tells you so and explains the convention. It never
 invents a flow that is not there.
 
+<div align="center">
+  <img src="docs/flows.jpg" alt="A four-phase command pipeline drawn from the command files" width="820">
+</div>
+
 It also flags **drift**: commands referenced in documentation that no longer exist, and paths
 mentioned that are not there. Documentation that describes a command nobody can run is a trap, and
 this finds it the day it breaks instead of months later.
@@ -101,6 +113,12 @@ finding that names a piece without living in its file is cross-referenced to it.
 
 No automatic patches and no automatic PRs. A patch that applies itself invites you to accept it
 without reading it, which is the opposite of the point.
+
+<div align="center">
+  <img src="docs/diagnostics.jpg" alt="Audit findings with severity, what happens and what to do" width="820">
+</div>
+
+> The screenshots show a sample configuration, not a real one.
 
 ### Lets you edit
 
