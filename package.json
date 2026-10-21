@@ -1,7 +1,7 @@
 {
   "name": "claude-config-panel",
   "version": "0.1.0",
-  "description": "Panel local para ver y entender toda la configuración de Claude Code: ajustes, skills, agentes, comandos, hooks y tareas programadas.",
+  "description": "See everything Claude Code is configured to do — settings, skills, agents, commands, hooks and scheduled tasks — and what runs on its own. Local, zero dependencies.",
   "type": "module",
   "bin": {
     "claude-config-panel": "bin/claude-config-panel.mjs"

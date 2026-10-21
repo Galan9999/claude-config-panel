@@ -1,140 +1,150 @@
-# Panel de Claude
+<div align="center">
 
-Un panel local para ver y entender toda la configuración de Claude Code: ajustes,
-skills, agentes, comandos, hooks y tareas programadas, de la config global y de
-cada repo, en la misma pantalla.
+# Claude Config Panel
 
-No existe ninguna interfaz que te enseñe todo esto a la vez. `/config` y
-`/permissions` cubren un subconjunto y sólo en la terminal; el resto es abrir
-ficheros JSON a mano. Esto lo junta.
+**See everything Claude Code is configured to do — and what runs on its own.**
 
-## Cómo se usa
+Your Claude setup is scattered across `~/.claude` and a `.claude/` folder in every repo.
+There is no single screen that shows you all of it. This is that screen.
 
-Necesita Node 18 o superior.
+[![CI](https://github.com/Galan9999/claude-config-panel/actions/workflows/ci.yml/badge.svg)](https://github.com/Galan9999/claude-config-panel/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-D97757.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A518-5B8C51.svg)](package.json)
+[![Dependencies](https://img.shields.io/badge/dependencies-0-5B8C51.svg)](package.json)
+[![Tests](https://img.shields.io/badge/tests-100-5B8C51.svg)](test)
+
+</div>
 
 ```bash
 npx claude-config-panel
 ```
 
-Y abres <http://127.0.0.1:7337>. Para pararlo, Ctrl+C.
+Open <http://127.0.0.1:7337>. Node 18+. Nothing to install, no dependencies, runs only on your machine.
 
-Sin argumentos busca proyectos con carpeta `.claude/` en las carpetas habituales
-(`~/code`, `~/dev`, `~/projects`, `~/Desktop`, `~/Documents`...). Si no encuentra
-los tuyos, pásale la ruta:
+---
+
+## Why
+
+`/config` and `/permissions` cover a slice of it, and only in the terminal. Everything else means
+opening JSON files by hand. So three questions stay unanswered:
+
+- **What do I actually have?** Settings, skills, agents, commands, hooks and scheduled tasks, global
+  and per repo, in one place.
+- **What does this rule really allow?** `Bash(node *)` reads as harmless. It lets Claude run any
+  script on your machine.
+- **What runs without me?** Hooks and scheduled tasks act while you are not looking. That is the part
+  of your configuration that deserves the most attention and gets the least.
+
+---
+
+## What it does
+
+### Explains every permission in plain words
+
+Each rule is translated, and the ones that are wider than they look get flagged.
+
+| Rule | What the panel says |
+|---|---|
+| `Bash(git *)` | Can run git with any argument, without asking. |
+| `Bash(node *)` | …**Careful: that allows running any script**, so in practice it is a very broad grant. → `broad` |
+| `mcp__…__slack_send_message` | Acts outward: can send or change something in that service. → `outbound` |
+
+### Surfaces what runs on its own
+
+Hooks and scheduled tasks in one table: what triggers them, what they run, with what time limit.
+This is how you find out you have two Prettier hooks firing on every single write.
+
+### Draws your command pipelines
+
+If a commands folder holds several `N.name.md` files, that is a pipeline. The panel renders it as an
+SVG diagram generated from the files themselves — no Mermaid, no CDN — showing each phase's model,
+which subagents it spawns, and **how many actions it can take outside your machine without asking**.
+
+It also flags **drift**: commands referenced in documentation that no longer exist, and paths
+mentioned that are not there. Documentation that describes a command nobody can run is a trap, and
+this finds it the day it breaks instead of months later.
+
+### Shows who built what
+
+Per piece: who created it and when, who touched it since, how many lines each commit changed, and a
+link to the commit. There is a profile per person with everything they created and everything they
+touched afterwards.
+
+It merges the same human across identities — work email, GitHub's
+`12345+user@users.noreply.github.com`, the `user@MacBook-Air.local` of an unconfigured laptop — and
+shows you which identities it merged, so you can spot a bad merge instead of trusting it.
+
+For anything outside git — `~/.claude` is not a repo, `settings.local.json` files are gitignored —
+it says so instead of inventing an author from a file timestamp.
+
+### Reads your audits, next to what they are about
+
+Point an auditing agent at a repo, have it write `.claude/audit/findings.json`, and the panel shows
+each finding beside the piece it concerns. Pieces with findings are marked in the listings, and a
+finding that names a piece without living in its file is cross-referenced to it.
+
+No automatic patches and no automatic PRs. A patch that applies itself invites you to accept it
+without reading it, which is the opposite of the point.
+
+### Lets you edit
+
+Markdown rendered, JSON validated, every save backed up first.
+
+---
+
+## Usage
 
 ```bash
-npx claude-config-panel ~/mis-repos
+npx claude-config-panel                  # scan the usual project folders
+npx claude-config-panel ~/my-repos       # scan a specific folder
 ```
 
-| Opción | Qué hace |
+| Option | What it does |
 |---|---|
-| `--port <n>` | Puerto donde escuchar (por defecto 7337) |
-| `--worktrees` | Incluye los worktrees enlazados, que por defecto se omiten porque duplican la config de su repo |
-| `--depth <n>` | Niveles a bajar buscando carpetas `.claude` (por defecto 5, suficiente para `<repo>/apps/<paquete>` de un monorepo) |
-| `--help` | Ayuda |
-| `CLAUDE_CFG_ROOTS=/a:/b` | Carpetas donde buscar, por variable de entorno |
+| `--port <n>` | Port to listen on (default 7337) |
+| `--depth <n>` | How deep to look for `.claude/` folders (default 5 — enough for `<repo>/apps/<package>`) |
+| `--worktrees` | Include linked worktrees, skipped by default because they duplicate their repo's config |
+| `--help` | Usage |
+| `CLAUDE_CFG_ROOTS=/a:/b` | Folders to scan, via environment variable |
 
-## Qué resuelve
+With no arguments it looks for projects with a `.claude/` folder in the usual places (`~/code`,
+`~/dev`, `~/projects`, `~/Desktop`, `~/Documents`…). Ctrl+C to stop.
 
-- **Ves todo lo que hay.** Encuentra sola la config global y la de cada repo con
-  carpeta `.claude/`, y las agrupa por tipo de pieza en vez de por fichero.
-- **Te explica cada permiso en castellano.** `Bash(node *)` deja de ser una línea
-  opaca y pasa a ser *"puede ejecutar Node con cualquier argumento; ojo, eso
-  permite correr cualquier script"*, con etiqueta de **amplio**. Las herramientas
-  que actúan hacia fuera (enviar, publicar, borrar) salen marcadas como
-  **sale fuera**.
-- **Destaca lo que se ejecuta solo.** Hooks y tareas programadas en una tabla:
-  qué los dispara, qué ejecutan y con qué límite de tiempo. Es la parte de la
-  configuración que actúa sin que tú estés delante, y la que menos se revisa.
-- **Lee y edita las skills y los agentes.** Markdown renderizado, con pestaña de
-  edición y copia de seguridad automática en cada guardado.
-- **Dice quién hizo qué.** De cada pieza versionada: quién la creó y cuándo,
-  quién la ha tocado después, cuántas líneas cambió cada commit y enlace al
-  commit en GitHub. De lo que no está en git —`~/.claude`, los
-  `settings.local.json`— lo dice claramente en vez de inventar un autor.
-- **Dibuja los flujos desde los ficheros.** Si una carpeta de comandos tiene
-  varios `N.nombre.md`, los pinta como el pipeline que son, con un diagrama SVG
-  generado al vuelo desde las propias fases —sin Mermaid ni ningún CDN— donde
-  cada caja lleva a su comando: orden, modelo de
-  cada fase, qué subagentes invoca y —lo que no se ve leyendo el flujo en
-  prosa— qué puede hacer cada fase **fuera de tu máquina sin preguntar**, sacado
-  de su `allowed-tools`. Y marca los desvíos: comandos citados en la
-  documentación que ya no existen, y rutas que se mencionan y no están. No
-  copia la documentación: la enlaza, porque un flujo contado en dos sitios
-  acaba con una versión obsoleta que nadie sabe que lo está.
-- **Tiene perfil por persona.** Quién ha construido la configuración de un repo:
-  qué creó cada uno, qué tocó después y cuántos commits lleva. Unifica al mismo
-  humano aunque commitee con varios correos — el del trabajo, el
-  `12345+usuario@users.noreply.github.com` de editar en la web, el
-  `usuario@MacBook-Air.local` de un portátil sin configurar — y enseña qué
-  identidades ha fundido para que puedas detectar una fusión mal hecha.
-- **Abre tickets.** Desde cualquier pieza que viva en un repo de GitHub, un issue
-  prellenado con la ruta del fichero.
+---
 
-## Esto lee y **escribe** tu configuración
+## Security
 
-No es sólo un visor: desde el panel puedes editar y guardar cualquier pieza. Cada
-guardado deja copia previa en `~/.claude/backups/config-dashboard/`, pero conviene
-saberlo antes de empezar a tocar.
+> [!IMPORTANT]
+> This reads **and writes** your Claude configuration. Every save leaves a copy in
+> `~/.claude/backups/config-dashboard/` first, but it is worth knowing before you start editing.
 
-## Seguridad
+- **Listens on 127.0.0.1 only.** Never exposed to the network.
+- **Checks where every request comes from.** Binding to localhost is not protection from your
+  browser: any open website can fire requests at it. With `content-type: text/plain` that would be a
+  simple request, no preflight, and the write would land even though the attacker cannot read the
+  response — and the first piece in the inventory is `~/.claude/settings.json`, where a hook runs by
+  itself in your next Claude session. So `Host` is validated (which also closes DNS rebinding),
+  `Origin` is validated, and `application/json` is required, forcing a preflight.
+  Regression tests live in [`test/server.test.mjs`](test/server.test.mjs).
+- **Writes only to config files found during the scan.** Any other path is rejected.
+- **Serves static files from `ui/` with no subfolders and no `..`**, so there is no path traversal.
+- **Validates JSON before writing.** A malformed file never reaches disk.
 
-- Escucha **sólo en 127.0.0.1**. No se expone a la red.
-- **Comprueba de dónde viene cada petición.** Escuchar en 127.0.0.1 no basta:
-  cualquier web abierta en tu navegador puede lanzarle peticiones. Con
-  `content-type: text/plain` sería una *simple request*, sin preflight, y la
-  escritura ocurriría aunque el atacante no pueda leer la respuesta — y la primera
-  pieza del inventario es `~/.claude/settings.json`, donde un hook se ejecuta solo
-  en tu siguiente sesión de Claude. Por eso se validan `Host` (lo que además cierra
-  el DNS rebinding) y `Origin`, y se exige `content-type: application/json`, que
-  obliga a preflight. Hay pruebas de regresión en `test/server.test.mjs`.
-- Sólo puede escribir en los ficheros de configuración que ha descubierto al
-  arrancar. Cualquier otra ruta se rechaza.
-- Los estáticos se sirven de `ui/` sin subcarpetas ni `..`, así que no hay
-  travesía de rutas.
-- Los JSON se validan antes de escribirse: un fichero mal formado nunca llega a
-  disco.
+Do not expose it beyond your own machine: it reads your Claude configuration, which can hold paths,
+connector tokens and the contents of your scheduled tasks.
 
-Gracias a [@lluisfilella](https://github.com/LegalPigeonTeam) por detectar lo del
-`POST` sin comprobación de origen.
+Thanks to **Lluís Filella** for catching the unauthenticated `POST`.
 
-No lo expongas fuera de tu máquina: lee tu configuración de Claude, que puede
-contener rutas, tokens de conectores y el contenido de tus tareas programadas.
+---
 
-## Un panel no sustituye a una revisión
+## The findings format
 
-Esto te enseña qué hay; no te dice si está bien. Para eso va bien un agente
-auditor que lea las piezas e informe — qué se solapa, qué nunca se dispara, qué
-permiso es más amplio de lo necesario — sin tocar nada. El panel trae el prompt
-preparado en cada pieza, en "Auditar con Claude".
-
-### El bucle: auditoría → hallazgo → ticket
-
-El panel enseña la revisión **al lado** de la pieza, sin modificarla: lo que hay
-a un lado, lo que el auditor dice al otro. En los listados, cada pieza con hallazgos lleva su distintivo con la peor
-severidad, para no tener que abrirlas una a una. Y una pieza que no es el
-fichero del hallazgo pero que éste nombra queda marcada igual: un hook
-definido en `settings.json` habla de un script que vive en otro sitio, y
-quien abre el script quiere enterarse. Hay además una sección
-**Diagnóstico** con el informe entero: los hallazgos ordenados por severidad,
-cada uno enlazado a la pieza que lo origina, y la lista de lo que el auditor
-**no** pudo comprobar, que es la diferencia entre un informe honesto y uno que
-rellena huecos. De ahí no sale un PR automático, y es
-deliberado. Un parche que se aplica solo invita a aceptarlo sin leerlo, que es lo
-contrario de lo que persigue esto.
-
-Lo que sale es un **hallazgo**, y la promoción a tarea la hace una persona con un
-comando. El auditor publica los hallazgos donde el equipo ya gestione su trabajo
-y el panel ofrece el comando de promoción al lado de cada uno. Los `id` estables
-hacen que una segunda auditoría no duplique: incrementa el contador de
-recurrencias del hallazgo que ya existía.
-
-### El formato de hallazgos
-
-Para que esa auditoría sirva de algo más que de lectura, su salida tiene un
-contrato: `.claude/audit/findings.json`, descrito en
-[`schema/findings.schema.json`](schema/findings.schema.json) y validado por
+For an audit to be worth more than a read-through, its output needs a contract:
+[`schema/findings.schema.json`](schema/findings.schema.json), validated by
 [`src/findings.mjs`](src/findings.mjs).
+
+<details>
+<summary>Example <code>.claude/audit/findings.json</code></summary>
 
 ```json
 {
@@ -142,70 +152,84 @@ contrato: `.claude/audit/findings.json`, descrito en
   "generatedAt": "2026-10-21T16:40:00.000Z",
   "tool": "auditor-config",
   "scope": { "path": "~/repos/backend", "kind": "repo" },
-  "summary": "Quitar Bash(bash *) del allow.",
+  "summary": "Drop Bash(bash *) from allow.",
   "findings": [{
-    "id": "permiso-bash-comodin",
+    "id": "wildcard-bash-permission",
     "severity": "alta",
     "category": "permiso-amplio",
-    "title": "Bash(bash *) permite ejecutar cualquier script",
+    "title": "Bash(bash *) allows running any script",
     "path": ".claude/settings.local.json",
     "line": 4,
-    "what": "La regla deja correr cualquier fichero.",
-    "proposal": "Sustituirla por las tres invocaciones concretas que se usan.",
+    "what": "The rule lets any file be executed.",
+    "proposal": "Replace it with the three concrete invocations actually in use.",
     "autofix": { "kind": "quitar-permiso", "file": ".claude/settings.local.json", "rule": "Bash(bash *)" }
   }],
   "notChecked": []
 }
 ```
 
-La validación es estricta a propósito: quien produce esto es un modelo de
-lenguaje o una herramienta de terceros. Los `id` tienen que ser estables entre
-auditorías —de ahí sale si un hallazgo abre ticket nuevo o ya tiene uno—, y una
-`proposal` que empiece por "revisar" se rechaza: tiene que decir qué hacer.
+</details>
 
-El formato no depende de este panel. Cualquier auditor puede emitirlo, y
-`cc-audit --format json` es candidato a tener un adaptador.
+Validation is strict on purpose: whatever produces this is a language model or a third-party tool.
+Two rules that are not cosmetic:
 
-## Desarrollo
+- **`id` must be stable across audits.** That is what decides whether a finding opens a new ticket or
+  already has one.
+- **A `proposal` starting with "review" is rejected.** It has to say what to do.
 
-Sin dependencias, ni de ejecución ni de desarrollo. Todo lo que usa viene con
-Node: el servidor es `node:http` y las pruebas son `node:test`.
+The format does not depend on this panel. Any auditor can emit it, and `cc-audit --format json` is a
+candidate for an adapter.
+
+---
+
+## Development
+
+No dependencies, runtime or dev. Everything it uses ships with Node: the server is `node:http` and
+the tests are `node:test`.
 
 ```bash
 git clone https://github.com/Galan9999/claude-config-panel
 cd claude-config-panel
-npm start      # arranca el panel
-npm test       # 100 pruebas
+npm start      # run the panel
+npm test       # 100 tests
 ```
 
-### Estructura
+<details>
+<summary>Project layout</summary>
 
 ```
-bin/claude-config-panel.mjs   Entrada de la CLI
+bin/claude-config-panel.mjs   CLI entry point
 src/
-  cli.mjs        Argumentos, ayuda y mensaje de arranque
-  paths.mjs      Rutas de ~/.claude
-  fsutil.mjs     Lectura tolerante, frontmatter, doc de scripts
-  git.mjs        Remoto de GitHub y detección de worktrees
-  history.mjs    Autoría y cambios de cada pieza, con git log
-  flows.mjs      Pipelines de comandos numerados y detección de desvíos
-  labels.mjs     Los nombres en castellano de cada pieza
-  discover.mjs   Recorrido del disco y catálogo de piezas
-  server.mjs     Rutas HTTP, guardado y copias de seguridad
+  cli.mjs        Arguments, help, startup message
+  paths.mjs      ~/.claude paths
+  fsutil.mjs     Tolerant reads, frontmatter, script docs
+  git.mjs        GitHub remote, repo root, worktree detection
+  history.mjs    Authorship and changes, via git log
+  flows.mjs      Numbered command pipelines and drift detection
+  findings.mjs   Audit findings schema and cross-referencing
+  discover.mjs   Filesystem walk and piece catalogue
+  server.mjs     HTTP routes, saving, backups
 ui/
-  index.html     La página
-  style.css      Paleta de Claude, con modo oscuro
-  app.js         Navegación, listados, detalle y edición
-  markdown.js    Renderizador de Markdown
-  permissions.js Traduce una regla de permisos a una frase
-  util.js        Escapado de HTML y ayudas
-test/            Pruebas de las funciones puras
+  index.html     The page
+  style.css      Palette, with dark mode
+  app.js         Navigation, listings, detail, editing
+  markdown.js    Markdown renderer
+  permissions.js Translates a permission rule into a sentence
+  util.js        HTML escaping and helpers
+test/            Tests for the pure functions and the HTTP contract
 ```
 
-La interfaz vive en ficheros `.html`, `.css` y `.js` de verdad, servidos como
-estáticos. `ui/markdown.js` y `ui/permissions.js` son módulos ES sin DOM, así que
-las pruebas de Node importan exactamente el mismo código que corre el navegador.
+</details>
 
-## Licencia
+The interface lives in real `.html`, `.css` and `.js` files served as static assets.
+`ui/markdown.js` and `ui/permissions.js` are DOM-free ES modules, so the Node tests import exactly
+the same code the browser runs.
 
-MIT.
+> **Note**
+> The interface itself is currently in Spanish. Translating it is tracked as future work.
+
+---
+
+## License
+
+MIT
