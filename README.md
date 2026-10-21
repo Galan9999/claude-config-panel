@@ -8,6 +8,31 @@ No existe ninguna interfaz que te enseñe todo esto a la vez. `/config` y
 `/permissions` cubren un subconjunto y sólo en la terminal; el resto es abrir
 ficheros JSON a mano. Esto lo junta.
 
+## Cómo se usa
+
+Necesita Node 18 o superior.
+
+```bash
+npx claude-config-panel
+```
+
+Y abres <http://127.0.0.1:7337>. Para pararlo, Ctrl+C.
+
+Sin argumentos busca proyectos con carpeta `.claude/` en las carpetas habituales
+(`~/code`, `~/dev`, `~/projects`, `~/Desktop`, `~/Documents`...). Si no encuentra
+los tuyos, pásale la ruta:
+
+```bash
+npx claude-config-panel ~/mis-repos
+```
+
+| Opción | Qué hace |
+|---|---|
+| `--port <n>` | Puerto donde escuchar (por defecto 7337) |
+| `--worktrees` | Incluye los worktrees enlazados, que por defecto se omiten porque duplican la config de su repo |
+| `--help` | Ayuda |
+| `CLAUDE_CFG_ROOTS=/a:/b` | Carpetas donde buscar, por variable de entorno |
+
 ## Qué resuelve
 
 - **Ves todo lo que hay.** Encuentra sola la config global y la de cada repo con
@@ -25,39 +50,13 @@ ficheros JSON a mano. Esto lo junta.
 - **Abre tickets.** Desde cualquier pieza que viva en un repo de GitHub, un issue
   prellenado con la ruta del fichero.
 
-## Cómo se usa
-
-Necesita Node 18 o superior. No instala nada.
-
-```bash
-node config-dashboard.mjs
-```
-
-Y abres <http://127.0.0.1:7337>.
-
-Sin argumentos busca proyectos con carpeta `.claude/` en las carpetas habituales
-(`~/code`, `~/dev`, `~/projects`, `~/Desktop`, `~/Documents`...). Si no encuentra
-los tuyos, pásale la ruta:
-
-```bash
-node config-dashboard.mjs ~/mis-repos
-```
-
-Opciones:
-
-| Opción | Qué hace |
-|---|---|
-| `--port 8080` | Cambia el puerto (por defecto 7337) |
-| `--worktrees` | Incluye los worktrees enlazados, que por defecto se omiten porque duplican la config de su repo |
-| `CLAUDE_CFG_ROOTS=/a:/b` | Carpetas donde buscar, por variable de entorno |
-
-Para pararlo, Ctrl+C.
-
 ## Seguridad
 
 - Escucha **sólo en 127.0.0.1**. No se expone a la red.
 - Sólo puede escribir en los ficheros de configuración que ha descubierto al
   arrancar. Cualquier otra ruta se rechaza.
+- Los estáticos se sirven de `ui/` sin subcarpetas ni `..`, así que no hay
+  travesía de rutas.
 - Cada guardado deja copia previa en `~/.claude/backups/config-dashboard/`.
 - Los JSON se validan antes de escribirse: un fichero mal formado nunca llega a
   disco.
@@ -71,3 +70,45 @@ Esto te enseña qué hay; no te dice si está bien. Para eso va bien un agente
 auditor que lea las piezas e informe — qué se solapa, qué nunca se dispara, qué
 permiso es más amplio de lo necesario — sin tocar nada. El panel trae el prompt
 preparado en cada pieza, en "Auditar con Claude".
+
+## Desarrollo
+
+Sin dependencias, ni de ejecución ni de desarrollo. Todo lo que usa viene con
+Node: el servidor es `node:http` y las pruebas son `node:test`.
+
+```bash
+git clone https://github.com/Galan9999/claude-config-panel
+cd claude-config-panel
+npm start      # arranca el panel
+npm test       # 31 pruebas
+```
+
+### Estructura
+
+```
+bin/claude-config-panel.mjs   Entrada de la CLI
+src/
+  cli.mjs        Argumentos, ayuda y mensaje de arranque
+  paths.mjs      Rutas de ~/.claude
+  fsutil.mjs     Lectura tolerante, frontmatter, doc de scripts
+  git.mjs        Remoto de GitHub y detección de worktrees
+  labels.mjs     Los nombres en castellano de cada pieza
+  discover.mjs   Recorrido del disco y catálogo de piezas
+  server.mjs     Rutas HTTP, guardado y copias de seguridad
+ui/
+  index.html     La página
+  style.css      Paleta de Claude, con modo oscuro
+  app.js         Navegación, listados, detalle y edición
+  markdown.js    Renderizador de Markdown
+  permissions.js Traduce una regla de permisos a una frase
+  util.js        Escapado de HTML y ayudas
+test/            Pruebas de las funciones puras
+```
+
+La interfaz vive en ficheros `.html`, `.css` y `.js` de verdad, servidos como
+estáticos. `ui/markdown.js` y `ui/permissions.js` son módulos ES sin DOM, así que
+las pruebas de Node importan exactamente el mismo código que corre el navegador.
+
+## Licencia
+
+MIT.

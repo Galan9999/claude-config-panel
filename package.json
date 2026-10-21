@@ -1,0 +1,46 @@
+{
+  "name": "claude-config-panel",
+  "version": "0.1.0",
+  "description": "Panel local para ver y entender toda la configuración de Claude Code: ajustes, skills, agentes, comandos, hooks y tareas programadas.",
+  "type": "module",
+  "bin": {
+    "claude-config-panel": "bin/claude-config-panel.mjs"
+  },
+  "exports": {
+    ".": "./src/server.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "ui",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node bin/claude-config-panel.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "config",
+    "dashboard",
+    "permissions",
+    "skills",
+    "agents",
+    "hooks"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Galan9999/claude-config-panel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Galan9999/claude-config-panel/issues"
+  },
+  "homepage": "https://github.com/Galan9999/claude-config-panel#readme",
+  "license": "MIT",
+  "dependencies": {}
+}
