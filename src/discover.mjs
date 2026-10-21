@@ -6,25 +6,25 @@ import { gitRemote, clearRemoteCache, isLinkedWorktree, repoRoot } from './git.m
 import { describeConfig } from './labels.mjs';
 import { isFolderDoc } from './flows.mjs';
 
-/** Carpetas que nunca contienen configuración y cuestan caro de recorrer. */
+/** Folders that never hold configuration and are expensive to walk. */
 const SKIP = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'vendor', 'coverage', '.turbo', 'tmp']);
 
-/** Dónde buscar proyectos cuando nadie dice lo contrario. */
+/** Where to look for projects when nobody says otherwise. */
 export const COMMON_ROOTS = ['Desktop/dades', 'code', 'dev', 'projects', 'proyectos',
   'src', 'repos', 'work', 'Desktop', 'Documents'];
 
-/** Cuántos niveles bajamos por defecto. 4 no bastan: en un monorepo la config
- *  de un paquete vive en `<repo>/apps/<paquete>/.claude`, que son 4 desde la
- *  carpeta que contiene los repos. */
+/** How deep we go by default. Four is not enough: in a monorepo a package's
+ *  config lives at `<repo>/apps/<package>/.claude`, four levels down from the
+ *  folder holding the repos. */
 export const DEFAULT_DEPTH = 5;
 
 /**
- * Busca carpetas `.claude/` hasta `depth` niveles por debajo de `dir`.
+ * Looks for `.claude/` folders up to `depth` levels below `dir`.
  *
- * Un proyecto puede contener otros: encontrar `.claude` en un repo no impide
- * seguir bajando, porque los paquetes de un monorepo tienen la suya. Lo que sí
- * se corta son los worktrees enlazados, y se cortan enteros: si no, cada uno
- * aportaría además una copia de la config de cada paquete que contiene.
+ * A project can contain others: finding `.claude` in a repo does not stop the
+ * walk, because a monorepo's packages have their own. Linked worktrees are cut,
+ * and cut whole: otherwise each would also contribute a copy of the config of
+ * every package inside it.
  *
  * @returns {{projects: string[], worktrees: string[]}}
  */
@@ -41,7 +41,7 @@ export function findProjects(dir, depth, { withWorktrees = false } = {},
   return acc;
 }
 
-/** Lee una carpeta de skills/agentes/comandos, en sus dos formas habituales. */
+/** Reads a skills/agents/commands folder, in both of its usual shapes. */
 function collectMarkdown(dir, kind, scope, repo, items) {
   const add = (path, name) => {
     const fm = frontmatter(read(path));
@@ -51,11 +51,11 @@ function collectMarkdown(dir, kind, scope, repo, items) {
   for (const e of ls(dir)) {
     if (e.isFile() && e.name.endsWith('.md')) { add(join(dir, e.name), e.name.replace(/\.md$/, '')); continue; }
     if (!e.isDirectory()) continue;
-    // <nombre>/SKILL.md y equivalentes
+    // <name>/SKILL.md and equivalents
     const inner = ['SKILL.md', 'AGENT.md', 'index.md', e.name + '.md']
       .map((c) => join(dir, e.name, c)).find(existsSync);
     if (inner) { add(inner, e.name); continue; }
-    // comandos agrupados: lp/foo.md -> lp:foo
+    // grouped commands: lp/foo.md -> lp:foo
     for (const sub of ls(join(dir, e.name))) {
       if (sub.isFile() && sub.name.endsWith('.md')) {
         add(join(dir, e.name, sub.name), e.name + ':' + sub.name.replace(/\.md$/, ''));
@@ -75,7 +75,7 @@ function collectScope(base, scope, repo, isGlobal, items) {
     items.push({ kind: 'config', scope, repo, editable: true, path, name: f, title, description,
       format: f.endsWith('.json') ? 'json' : 'md' });
   }
-  // Muchos proyectos dejan el CLAUDE.md en la raíz, fuera de .claude/
+  // Many projects keep CLAUDE.md at the root, outside .claude/
   if (!isGlobal && existsSync(join(base, 'CLAUDE.md'))) {
     const [title, description] = describeConfig('CLAUDE.md', false);
     items.push({ kind: 'config', scope, repo, editable: true, path: join(base, 'CLAUDE.md'),
@@ -98,7 +98,7 @@ function collectScope(base, scope, repo, isGlobal, items) {
 }
 
 /**
- * Recorre la configuración global y la de cada proyecto bajo `scanRoots`.
+ * Walks the global configuration and each project under `scanRoots`.
  * @returns {{items: object[], skipped: string[]}}
  */
 export function discover({ scanRoots = [], withWorktrees = false, depth = DEFAULT_DEPTH } = {}) {
@@ -122,16 +122,16 @@ export function discover({ scanRoots = [], withWorktrees = false, depth = DEFAUL
   items.forEach((it, i) => {
     it.id = String(i);
     it.displayPath = tilde(it.path);
-    // `project` es la carpeta con .claude/; `repo` es la raíz de git, que en un
-    // monorepo no son la misma: apps/web es proyecto pero no repo.
-    // Un _README.md dentro de una carpeta de comandos documenta el flujo; no es
-    // algo que se pueda invocar.
+    // `project` is the folder holding .claude/; `repo` is the git root. In a
+    // monorepo they differ: apps/web is a project but not a repo.
+    // A _README.md inside a commands folder documents the flow; it is not
+    // something you can invoke.
     if (it.kind === 'command' && isFolderDoc(it.name)) it.role = 'doc';
     it.project = it.repo;
     it.repo = it.repo ? repoRoot(it.repo) : null;
     it.remote = it.repo ? gitRemote(it.repo) : null;
     it.relPath = it.repo ? relative(it.repo, it.path) : null;
-    try { const s = statSync(it.path); it.size = s.size; it.mtime = s.mtime.toISOString(); } catch { /* ya no está */ }
+    try { const s = statSync(it.path); it.size = s.size; it.mtime = s.mtime.toISOString(); } catch { /* gone */ }
   });
   return { items, skipped: [...skipped].sort() };
 }

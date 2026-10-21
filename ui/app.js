@@ -1,58 +1,57 @@
-// Estado e interfaz del panel: navegación, listados, detalle y edición.
+// Panel state and interface: navigation, listings, detail and editing.
 import { $, esc } from './util.js';
 import { explain } from './permissions.js';
 import { md } from './markdown.js';
 
-let DATA = null, view = 'resumen', cur = null, text = '', orig = '', tab = 'ui';
-let PEOPLE = null, personaAbierta = null, FLOWS = null;
+let DATA = null, view = 'overview', cur = null, text = '', orig = '', tab = 'ui';
+let PEOPLE = null, openPerson = null, FLOWS = null;
 
-/* ----- arranque ----- */
+/* ----- boot ----- */
 async function boot() {
   DATA = await (await fetch('/api/items')).json();
-  const navs = [['resumen', '◉', 'Resumen', '']]
+  const navs = [['overview', '◉', 'Overview', '']]
     .concat(Object.entries(DATA.kinds).map(([k, v]) => [k, v.icon, v.label, DATA.counts[k]]))
-    .concat([['flujos', '⇢', 'Flujos', ''], ['diagnostico', '✓', 'Diagnóstico', ''],
-      ['personas', '☻', 'Personas', '']]);
+    .concat([['flows', '⇢', 'Flows', ''], ['diagnostics', '✓', 'Diagnostics', ''],
+      ['people', '☻', 'People', '']]);
   $('#nav').innerHTML = navs.map(([k, ic, lab, n]) =>
     '<div class="nav" data-v="' + k + '"><span class="ic">' + ic + '</span>' + lab +
     (n === '' ? '' : '<span class="n">' + n + '</span>') + '</div>').join('');
   $('#nav').onclick = (e) => { const el = e.target.closest('.nav'); if (el) go(el.dataset.v); };
-  go('resumen');
+  go('overview');
 }
-function go(v) { view = v; cur = null; personaAbierta = null;
+function go(v) { view = v; cur = null; openPerson = null;
   document.querySelectorAll('.nav').forEach((e) => e.classList.toggle('on', e.dataset.v === v));
-  if (v === 'resumen') renderResumen();
-  else if (v === 'personas') renderPersonas();
-  else if (v === 'flujos') renderFlujos();
-  else if (v === 'diagnostico') renderDiagnostico();
+  if (v === 'overview') renderOverview();
+  else if (v === 'people') renderPeople();
+  else if (v === 'flows') renderFlows();
+  else if (v === 'diagnostics') renderDiagnostics();
   else renderList(v);
   window.scrollTo(0, 0); $('#main').scrollTop = 0; }
 
-/* ----- resumen ----- */
-function renderResumen() {
+/* ----- overview ----- */
+function renderOverview() {
   const scopes = DATA.scopes;
-  let h = '<h1>Qué tiene configurado Claude</h1><p class="lede">Cada pieza se carga en un momento distinto y con reglas distintas. ' +
-    'Esto es todo lo que hay en tu máquina, agrupado por tipo de pieza en vez de por fichero.</p><div class="grid">';
+  let h = '<h1>What Claude is configured to do</h1><p class="lede">Each piece loads at a different moment and under ' +
+    'different rules. This is everything on your machine, grouped by kind of piece instead of by file.</p><div class="grid">';
   for (const [k, v] of Object.entries(DATA.kinds)) {
     h += '<div class="card clk" data-go="' + k + '"><div class="kpi">' + DATA.counts[k] + '</div>' +
       '<div class="ttl" style="margin-top:2px">' + v.icon + ' ' + v.label + '</div>' +
       '<div class="desc">' + esc(v.blurb) + '</div></div>';
   }
-  h += '</div><h2 class="sec">Ámbitos detectados (' + scopes.length + ')</h2><div class="card">' +
+  h += '</div><h2 class="sec">Scopes found (' + scopes.length + ')</h2><div class="card">' +
     scopes.map((s) => '<span class="tag" style="margin:0 6px 6px 0;display:inline-block">' + esc(s) + '</span>').join('') +
     ((DATA.skipped || []).length ? '<div class="desc" style="margin-top:11px">' + DATA.skipped.length +
-      ' worktrees omitidos porque comparten la config de su repo. Arranca con <code>--worktrees</code> si quieres verlos.</div>' : '') +
+      ' worktrees skipped because they share their repo\'s config. Start with <code>--worktrees</code> to include them.</div>' : '') +
     '</div>';
 
-  h += '<h2 class="sec">Revisar todo esto con Claude</h2>' +
-    '<div class="hint"><b>Un panel te enseña qué hay; no te dice si está bien.</b> ' +
-    'Para eso lanza una auditoría: Claude lee estas piezas y te devuelve un informe de qué sobra, qué se solapa y qué nunca llega a dispararse.</div>' +
-    '<div class="card"><div class="ttl">Auditoría completa</div>' +
-    '<div class="desc">Pégalo en Claude Code dentro del repo que quieras revisar.</div>' +
-    copyBlock('Audita la configuración de Claude de este repo con el agente auditor-config: ' +
-      'skills, agentes, comandos, hooks y permisos. Dime qué se solapa, qué nunca se dispara, ' +
-      'qué permiso es más amplio de lo que hace falta y qué hook actúa sin que yo lo vea. ' +
-      'Informe primero, sin tocar nada.') + '</div>';
+  h += '<h2 class="sec">Review all of this with Claude</h2>' +
+    '<div class="hint"><b>A panel shows you what you have; it does not tell you whether it is right.</b> ' +
+    'For that, run an audit: Claude reads these pieces and reports what is redundant, what overlaps and what never fires.</div>' +
+    '<div class="card"><div class="ttl">Full audit</div>' +
+    '<div class="desc">Paste this into Claude Code inside the repo you want reviewed.</div>' +
+    copyBlock('Audit this repo\'s Claude configuration: skills, agents, commands, hooks and ' +
+      'permissions. Tell me what overlaps, what never fires, which permission is broader than it ' +
+      'needs to be and which hook acts without me seeing it. Report first, change nothing.') + '</div>';
   $('#main').innerHTML = h;
   $('#main').onclick = (e) => {
     const c = e.target.closest('[data-go]'); if (c) return go(c.dataset.go);
@@ -69,24 +68,23 @@ function copyHandler(e) {
   });
 }
 
-/* ----- diagnóstico ----- */
+/* ----- diagnostics ----- */
 
-const SEV = { alta: 'err', media: 'warn', baja: '' };
+const SEV = { high: 'err', medium: 'warn', low: '' };
 
-async function renderDiagnostico() {
-  $('#main').innerHTML = '<h1>Diagnóstico</h1><p class="lede">Buscando informes de auditoría…</p>';
+async function renderDiagnostics() {
+  $('#main').innerHTML = '<h1>Diagnostics</h1><p class="lede">Looking for audit reports…</p>';
   const { informes } = await (await fetch('/api/findings')).json();
 
-  let h = '<h1>Diagnóstico</h1><p class="lede">Lo que la auditoría dijo de esta configuración. ' +
-    'No lo calcula el panel: lo produce un auditor y se guarda en <code>.claude/audit/findings.json</code>. ' +
-    'Aquí sólo se lee y se enseña al lado de lo que hay.</p>';
+  let h = '<h1>Diagnostics</h1><p class="lede">What the audit said about this configuration. ' +
+    'The panel does not compute it: an auditor produces it and it is stored in ' +
+    '<code>.claude/audit/findings.json</code>. Here it is only read and shown beside what you have.</p>';
 
   if (!informes.length) {
-    h += '<div class="card"><div class="ttl">Todavía no hay ninguna auditoría</div>' +
-      '<div class="desc" style="margin-bottom:8px">Pídesela al agente <code>auditor-config</code> desde el repo ' +
-      'que quieras revisar. Escribe su informe en <code>.claude/audit/findings.json</code> y el panel lo recoge solo.</div>' +
-      copyBlock('Audita la configuración de Claude de este repo con el agente auditor-config. ' +
-        'Sólo lectura, informe primero.') + '</div>';
+    h += '<div class="card"><div class="ttl">No audit yet</div>' +
+      '<div class="desc" style="margin-bottom:8px">Ask an auditing agent for one from the repo you want ' +
+      'reviewed. It writes its report to <code>.claude/audit/findings.json</code> and the panel picks it up.</div>' +
+      copyBlock('Audit this repo\'s Claude configuration. Read only, report first.') + '</div>';
     $('#main').innerHTML = h;
     $('#main').onclick = copyHandler;
     return;
@@ -94,38 +92,38 @@ async function renderDiagnostico() {
 
   for (const inf of informes) {
     if (inf.errors.length) {
-      h += '<div class="card"><div class="ttl">' + esc(inf.repoLabel) + '<span class="tag err">inválido</span></div>' +
-        '<div class="desc">' + esc(inf.path) + ' no cumple el esquema: ' + esc(inf.errors.join('; ')) + '</div></div>';
+      h += '<div class="card"><div class="ttl">' + esc(inf.repoLabel) + '<span class="tag err">invalid</span></div>' +
+        '<div class="desc">' + esc(inf.path) + ' does not match the schema: ' + esc(inf.errors.join('; ')) + '</div></div>';
       continue;
     }
-    const cuenta = { alta: 0, media: 0, baja: 0 };
-    inf.findings.forEach((f) => { cuenta[f.severity] += 1; });
+    const count = { high: 0, medium: 0, low: 0 };
+    inf.findings.forEach((f) => { count[f.severity] += 1; });
 
-    h += '<h2 class="sec">' + esc(inf.repoLabel) + ' · ' + inf.findings.length + ' hallazgos</h2>' +
-      '<div class="hint"><b>Si sólo haces una cosa:</b> ' + esc(inf.summary) + '</div>' +
-      '<div class="card"><div class="desc">Auditado por <code>' + esc(inf.tool) + '</code> el ' +
-      fecha(inf.generatedAt) + ' · ' +
-      Object.entries(cuenta).filter(([, n]) => n).map(([s, n]) =>
+    h += '<h2 class="sec">' + esc(inf.repoLabel) + ' · ' + inf.findings.length + ' findings</h2>' +
+      '<div class="hint"><b>If you only do one thing:</b> ' + esc(inf.summary) + '</div>' +
+      '<div class="card"><div class="desc">Audited by <code>' + esc(inf.tool) + '</code> on ' +
+      fdate(inf.generatedAt) + ' · ' +
+      Object.entries(count).filter(([, n]) => n).map(([s, n]) =>
         '<span class="tag ' + SEV[s] + '">' + n + ' ' + s + '</span>').join(' ') + '</div></div>';
 
     for (const f of inf.findings) {
       h += '<div class="card"><div class="ttl"><span class="tag ' + SEV[f.severity] + '">' + esc(f.severity) + '</span>' +
         esc(f.title) + '<span class="tag">' + esc(f.category) + '</span></div>' +
         '<div class="desc" style="margin-top:6px">' + esc(f.what) + '</div>' +
-        '<div class="desc" style="margin-top:6px"><b>Qué hacer:</b> ' + esc(f.proposal) + '</div>' +
+        '<div class="desc" style="margin-top:6px"><b>What to do:</b> ' + esc(f.proposal) + '</div>' +
         '<div class="desc" style="margin-top:8px"><code>' + esc(f.path) + (f.line ? ':' + f.line : '') + '</code>' +
-        (f.itemId ? ' <span class="rule clk" data-id="' + esc(f.itemId) + '" style="cursor:pointer">Ver la pieza</span>' : '') +
-        (f.autofix ? ' <span class="tag acc">arreglo mecánico</span>' : '') + '</div>' +
+        (f.itemId ? ' <span class="rule clk" data-id="' + esc(f.itemId) + '" style="cursor:pointer">Open the piece</span>' : '') +
+        (f.autofix ? ' <span class="tag acc">mechanical fix</span>' : '') + '</div>' +
         (f.notion ? '<div class="desc" style="margin-top:7px"><a href="' + esc(f.notion.url) +
-          '" target="_blank" rel="noopener">Hallazgo en Notion</a></div>' +
+          '" target="_blank" rel="noopener">Finding in the tracker</a></div>' +
           copyBlock('/lp:task --from-finding ' + f.notion.url) : '') +
         '</div>';
     }
 
     if (inf.notChecked.length) {
-      h += '<div class="card"><div class="ttl">Lo que el auditor no pudo comprobar<span class="tag">' +
+      h += '<div class="card"><div class="ttl">What the auditor could not check<span class="tag">' +
         inf.notChecked.length + '</span></div><div class="desc" style="margin-bottom:8px">' +
-        'Está aquí a propósito: es la diferencia entre un informe honesto y uno que se lo inventa.</div><ul class="md">' +
+        'This is here on purpose: it is the difference between an honest report and one that fills gaps.</div><ul class="md">' +
         inf.notChecked.map((n) => '<li style="color:var(--dim);font-size:13px;margin-bottom:6px">' + esc(n) + '</li>').join('') +
         '</ul></div>';
     }
@@ -139,22 +137,22 @@ async function renderDiagnostico() {
   };
 }
 
-/* ----- flujos ----- */
+/* ----- flows ----- */
 
 /**
- * Diagrama del pipeline, en SVG hecho a mano.
+ * The pipeline diagram, as hand-built SVG.
  *
- * Nada de Mermaid: traerlo significaría un CDN, y el panel no carga nada de
- * fuera. En vertical y no en horizontal porque siete fases en una fila obligan a
- * encoger la letra hasta no leerse en un panel estrecho.
+ * No Mermaid: pulling it in would mean a CDN, and the panel loads nothing from
+ * outside. Vertical rather than horizontal because seven phases in a row force
+ * the type down until it cannot be read in a narrow pane.
  */
-function diagramaFlujo(f) {
+function flowDiagram(f) {
   const W = 420, ALTO = 34, HUECO = 14, M = 8;
   const alto = f.phases.length * ALTO + (f.phases.length - 1) * HUECO + M * 2;
   const esGate = (p) => /\bgate\b/i.test(p.title);
 
   let svg = '<svg viewBox="0 0 ' + W + ' ' + alto + '" width="100%" ' +
-    'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama del flujo /' + esc(f.folder) + '">' +
+    'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flow diagram for /' + esc(f.folder) + '">' +
     '<defs><marker id="pta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">' +
     '<path d="M0,0 L10,5 L0,10 z" fill="var(--line2)"/></marker></defs>';
 
@@ -184,194 +182,194 @@ function diagramaFlujo(f) {
   return svg + '</svg>';
 }
 
-/** Corta un texto largo por la primera frase o por `max`. */
-function resumen(t, max) {
-  const limpio = String(t || '').replace(/^[^—-]*[—-]\s*/, '').trim();
-  const corte = limpio.split(/(?<=\.)\s/)[0];
-  return corte.length > max ? corte.slice(0, max - 1) + '…' : corte;
+/** Trims a long text at its first sentence, or at `max`. */
+function summarise(t, max) {
+  const clean = String(t || '').replace(/^[^—-]*[—-]\s*/, '').trim();
+  const cut = clean.split(/(?<=\.)\s/)[0];
+  return cut.length > max ? cut.slice(0, max - 1) + '…' : cut;
 }
 
-async function renderFlujos() {
-  $('#main').innerHTML = '<h1>Flujos</h1><p class="lede">Leyendo los comandos…</p>';
+async function renderFlows() {
+  $('#main').innerHTML = '<h1>Flows</h1><p class="lede">Reading the commands…</p>';
   FLOWS = await (await fetch('/api/flows')).json();
-  const { flows, desvios } = FLOWS;
+  const { flows, drift } = FLOWS;
 
-  // Carpetas de comandos sin numerar, para sugerirlas cuando no hay ningún flujo.
-  const porCarpeta = {};
+  // Unnumbered command folders, to suggest when there is no flow at all.
+  const byFolder = {};
   for (const it of DATA.items) {
     if (it.kind !== 'command' || !it.name.includes(':')) continue;
     const f = it.name.split(':')[0];
-    porCarpeta[f] = (porCarpeta[f] || 0) + 1;
+    byFolder[f] = (byFolder[f] || 0) + 1;
   }
-  const sueltos = Object.entries(porCarpeta).map(([folder, n]) => ({ folder, n }))
+  const loose = Object.entries(byFolder).map(([folder, n]) => ({ folder, n }))
     .sort((a, b) => b.n - a.n);
 
-  let h = '<h1>Flujos</h1><p class="lede">Secuencias de comandos numerados que forman un pipeline. ' +
-    'Esto no es una explicación escrita a mano: sale de los propios ficheros, así que no puede quedarse ' +
-    'desfasada respecto a lo que de verdad se ejecuta.</p>';
+  let h = '<h1>Flows</h1><p class="lede">Sequences of numbered commands that form a pipeline. ' +
+    'This is not a hand-written explanation: it comes from the files themselves, so it cannot drift ' +
+    'away from what actually runs.</p>';
 
   if (!flows.length) {
-    // Esto no es un error ni le falta nada al repo: la mayoría no numera sus
-    // comandos. Pero una pantalla vacía parece una herramienta rota, así que
-    // conviene explicar de qué va la convención.
-    h += '<div class="card"><div class="ttl">Este repositorio no tiene flujos, y es lo normal</div>' +
-      '<div class="desc" style="margin-top:7px">Un flujo no es nada que haya que instalar ni declarar: es ' +
-      'una <b>convención de nombres</b>. La regla exacta: <b>dos o más</b> ficheros de una misma carpeta de ' +
-      'comandos cuyo nombre empiece por <code>&lt;número&gt;.</code>. El número sólo marca el orden — no ' +
-      'tienen que ser consecutivos ni empezar por 1, así que puedes dejar huecos para meter fases después.</div>' +
+    // This is not an error and nothing is missing: most repos do not number
+    // their commands. But an empty screen reads as a broken tool, so it is
+    // worth explaining what the convention is.
+    h += '<div class="card"><div class="ttl">This repository has no flows, and that is normal</div>' +
+      '<div class="desc" style="margin-top:7px">A flow is nothing you install or declare: it is a ' +
+      '<b>naming convention</b>. The exact rule: <b>two or more</b> files in the same commands folder ' +
+      'whose name starts with <code>&lt;number&gt;.</code>. The number only sets the order — they need not ' +
+      'be consecutive nor start at 1, so you can leave gaps for phases you add later.</div>' +
       '<pre class="copy" style="cursor:default">.claude/commands/deploy/\n' +
       '  1.check.md\n  2.build.md\n  3.ship.md</pre>' +
-      '<div class="desc" style="margin-top:10px">Con eso ya saldría dibujado <code>/deploy:*</code> con sus ' +
-      'tres fases, el modelo de cada una y lo que puede hacer fuera de tu máquina sin preguntar. No hay ' +
-      'carpeta cableada: funciona con el nombre que le pongas.</div>' +
-      '<div class="desc" style="margin-top:10px">Si tus comandos no van en secuencia, esta sección no te ' +
-      'hace falta. El panel no se inventa flujos donde no los hay.</div></div>';
+      '<div class="desc" style="margin-top:10px">That alone renders <code>/deploy:*</code> with its three ' +
+      'phases, each one\'s model and what it can do outside your machine without asking. No folder is ' +
+      'hardcoded: it works with whatever you name yours.</div>' +
+      '<div class="desc" style="margin-top:10px">If your commands are not a sequence, you do not need this ' +
+      'section. The panel never invents a flow that is not there.</div></div>';
 
-    if (sueltos.length) {
-      h += '<div class="card"><div class="ttl">Carpetas de comandos que tienes<span class="tag">' +
-        sueltos.length + '</span></div>' +
-        '<div class="desc" style="margin-bottom:9px">Por si alguna es en realidad una secuencia y sólo le ' +
-        'falta el número delante.</div><div class="rules">' +
-        sueltos.map((c) => '<span class="rule">' + esc(c.folder) + ' <b>' + c.n + '</b></span>').join('') +
+    if (loose.length) {
+      h += '<div class="card"><div class="ttl">Command folders you do have<span class="tag">' +
+        loose.length + '</span></div>' +
+        '<div class="desc" style="margin-bottom:9px">In case one of them is really a sequence that is only ' +
+        'missing the numbers.</div><div class="rules">' +
+        loose.map((c) => '<span class="rule">' + esc(c.folder) + ' <b>' + c.n + '</b></span>').join('') +
         '</div></div>';
     }
   }
 
   for (const f of flows) {
     h += '<h2 class="sec">/' + esc(f.folder) + ':* · ' + esc(f.scope.split('/').slice(-2).join('/')) +
-      ' · ' + f.phases.length + ' fases</h2>' +
-      '<div class="card diagrama">' + diagramaFlujo(f) + '</div>';
+      ' · ' + f.phases.length + ' phases</h2>' +
+      '<div class="card diagrama">' + flowDiagram(f) + '</div>';
     for (const p of f.phases) {
       h += '<div class="card"><div class="ttl">' +
         '<span class="paso">' + p.order + '</span>/' + esc(f.folder) + ':' + esc(p.slug) +
         (p.model ? '<span class="tag acc">' + esc(p.model) + '</span>' : '') +
-        '<span class="tag">' + p.tools.length + ' herramientas</span>' +
-        (p.agents ? '<span class="tag">lanza subagentes</span>' : '') + '</div>' +
+        '<span class="tag">' + p.tools.length + ' tools</span>' +
+        (p.agents ? '<span class="tag">spawns subagents</span>' : '') + '</div>' +
         '<div class="desc" style="margin-top:6px">' + esc(p.title) + '</div>' +
         (p.hint ? '<div class="desc" style="margin-top:5px"><code>' + esc(p.hint) + '</code></div>' : '');
-      if (p.invoca.length) {
-        h += '<div class="desc" style="margin-top:9px">Invoca: ' + p.invoca.map((a) =>
+      if (p.invokes.length) {
+        h += '<div class="desc" style="margin-top:9px">Invokes: ' + p.invokes.map((a) =>
           '<span class="rule clk" data-id="' + esc(a.id) + '" style="cursor:pointer">◇ ' + esc(a.name) + '</span>').join(' ') + '</div>';
       }
       if (p.outward.length) {
-        h += '<div class="desc" style="margin-top:9px">Puede actuar fuera sin preguntar: ' +
+        h += '<div class="desc" style="margin-top:9px">Can act outward without asking: ' +
           p.outward.map((t) => '<span class="rule" style="border-color:var(--err);color:var(--err)">' +
             esc(t.split('__').slice(2).join('__')) + '</span>').join(' ') + '</div>';
       }
       h += '<div class="row" style="margin-top:11px"><span class="rule clk" data-id="' + esc(p.id) +
-        '" style="cursor:pointer">Ver el comando</span></div></div>';
+        '" style="cursor:pointer">Open the command</span></div></div>';
     }
     if (f.docs.length) {
-      h += '<div class="card"><div class="ttl">Documentación del flujo</div>' +
-        '<div class="desc">La prosa vive aquí, y manda sobre cualquier diagrama. El panel la enlaza, no la copia.</div>' +
+      h += '<div class="card"><div class="ttl">Flow documentation</div>' +
+        '<div class="desc">The prose lives here, and it outranks any diagram. The panel links it, it does not copy it.</div>' +
         '<div class="rules" style="margin-top:10px">' + f.docs.map((d) =>
           '<span class="rule clk" data-id="' + esc(d.id) + '" style="cursor:pointer">' + esc(d.name) + '</span>').join('') +
         '</div></div>';
     }
   }
 
-  const rotos = desvios.filter((d) => d.tipo === 'comando-inexistente');
-  const rutas = desvios.filter((d) => d.tipo === 'ruta-inexistente');
-  h += '<h2 class="sec">Desvíos · ' + desvios.length + '</h2>';
-  if (!desvios.length) {
-    h += '<div class="card"><div class="desc">Todo lo que citan los comandos y la documentación existe.</div></div>';
+  const broken = drift.filter((d) => d.type === 'missing-command');
+  const paths = drift.filter((d) => d.type === 'missing-path');
+  h += '<h2 class="sec">Drift · ' + drift.length + '</h2>';
+  if (!drift.length) {
+    h += '<div class="card"><div class="desc">Everything the commands and the documentation quote exists.</div></div>';
   }
-  if (rotos.length) {
-    h += '<div class="card"><div class="ttl">Comandos citados que no existen<span class="tag err">' + rotos.length + '</span></div>' +
-      '<div class="desc" style="margin-bottom:8px">Documentación que describe algo que ya no se puede ejecutar. ' +
-      'Es lo que convierte un README en una trampa.</div><table><tr><th>Cita</th><th>Dónde</th></tr>' +
-      rotos.map((d) => '<tr><td class="cmd">' + esc(d.que) + '</td><td class="cmd clk" data-id="' + esc(d.id) +
-        '" style="cursor:pointer">' + esc(d.donde) + '</td></tr>').join('') + '</table></div>';
+  if (broken.length) {
+    h += '<div class="card"><div class="ttl">Commands quoted that do not exist<span class="tag err">' + broken.length + '</span></div>' +
+      '<div class="desc" style="margin-bottom:8px">Documentation describing something nobody can run any more. ' +
+      'This is what turns a README into a trap.</div><table><tr><th>Quoted</th><th>Where</th></tr>' +
+      broken.map((d) => '<tr><td class="cmd">' + esc(d.what) + '</td><td class="cmd clk" data-id="' + esc(d.id) +
+        '" style="cursor:pointer">' + esc(d.where) + '</td></tr>').join('') + '</table></div>';
   }
-  if (rutas.length) {
-    h += '<div class="card"><div class="ttl">Rutas citadas que no están<span class="tag warn">' + rutas.length + '</span></div>' +
-      '<div class="desc" style="margin-bottom:8px">Ojo: algunas las genera el propio flujo al ejecutarse, ' +
-      'así que no todas son un error. Las carpetas ya se descartan.</div><table><tr><th>Ruta</th><th>Citada en</th></tr>' +
-      rutas.map((d) => '<tr><td class="cmd">' + esc(d.que) + '</td><td class="cmd clk" data-id="' + esc(d.id) +
-        '" style="cursor:pointer">' + esc(d.donde) + '</td></tr>').join('') + '</table></div>';
+  if (paths.length) {
+    h += '<div class="card"><div class="ttl">Paths quoted that are not there<span class="tag warn">' + paths.length + '</span></div>' +
+      '<div class="desc" style="margin-bottom:8px">Careful: some are created by the flow itself when it runs, ' +
+      'so not all of them are errors. Folders are already discarded.</div><table><tr><th>Path</th><th>Quoted in</th></tr>' +
+      paths.map((d) => '<tr><td class="cmd">' + esc(d.what) + '</td><td class="cmd clk" data-id="' + esc(d.id) +
+        '" style="cursor:pointer">' + esc(d.where) + '</td></tr>').join('') + '</table></div>';
   }
 
   $('#main').innerHTML = h;
   $('#main').onclick = (e) => { const c = e.target.closest('[data-id]'); if (c) openItem(c.dataset.id); };
 }
 
-/* ----- personas ----- */
+/* ----- people ----- */
 
-const inicial = (n) => (n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+const initials = (n) => (n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
-async function renderPersonas(repo) {
-  $('#main').innerHTML = '<h1>Personas</h1><p class="lede">Leyendo el historial del repositorio…</p>';
+async function renderPeople(repo) {
+  $('#main').innerHTML = '<h1>People</h1><p class="lede">Reading the repository history…</p>';
   PEOPLE = await (await fetch('/api/people' + (repo ? '?repo=' + encodeURIComponent(repo) : ''))).json();
-  const { people, repos, repoLabel, piezas, sinHistorial } = PEOPLE;
+  const { people, repos, repoLabel, pieces, noHistory } = PEOPLE;
 
-  let h = '<h1>Personas</h1><p class="lede">Quién ha construido la configuración de este repositorio: ' +
-    'qué creó cada uno y qué ha tocado después. Sale del historial de git, así que sólo cubre lo versionado.</p>';
+  let h = '<h1>People</h1><p class="lede">Who built this repository\'s configuration: what each person ' +
+    'created and what they touched afterwards. It comes from git history, so it only covers what is versioned.</p>';
 
   if (repos.length > 1) {
-    h += '<div class="card"><label>Repositorio</label><select id="repoSel">' + repos.map((r) =>
+    h += '<div class="card"><label>Repository</label><select id="repoSel">' + repos.map((r) =>
       '<option value="' + esc(r.repo) + '"' + (r.repo === PEOPLE.repo ? ' selected' : '') + '>' +
-      esc(r.label) + ' · ' + r.items + ' piezas</option>').join('') + '</select></div>';
+      esc(r.label) + ' · ' + r.items + ' pieces</option>').join('') + '</select></div>';
   }
 
   if (!people.length) {
-    return ($('#main').innerHTML = h + '<div class="card"><div class="desc">Ninguna pieza de ' +
-      esc(repoLabel || 'este ámbito') + ' está versionada, así que no hay autoría que mostrar.</div></div>');
+    return ($('#main').innerHTML = h + '<div class="card"><div class="desc">No piece of ' +
+      esc(repoLabel || 'this scope') + ' is versioned, so there is no authorship to show.</div></div>');
   }
 
-  h += '<h2 class="sec">' + esc(repoLabel) + ' · ' + piezas + ' piezas · ' + people.length + ' personas</h2>';
+  h += '<h2 class="sec">' + esc(repoLabel) + ' · ' + pieces + ' pieces · ' + people.length + ' people</h2>';
   for (const p of people) {
-    const porTipo = (lista) => {
+    const byKind = (list) => {
       const c = {};
-      for (const x of lista) c[x.kind] = (c[x.kind] || 0) + 1;
+      for (const x of list) c[x.kind] = (c[x.kind] || 0) + 1;
       return Object.entries(c).sort((a, b) => b[1] - a[1])
         .map(([k, n]) => '<span class="tag">' + DATA.kinds[k].icon + ' ' + n + ' ' + esc(DATA.kinds[k].label.toLowerCase()) + '</span>').join(' ');
     };
     h += '<div class="card clk" data-persona="' + esc(p.id) + '">' +
-      '<div class="ttl"><span class="avatar">' + esc(inicial(p.name)) + '</span>' + esc(p.name) +
-      '<span class="tag acc">' + p.created.length + ' creadas</span>' +
-      (p.modified.length ? '<span class="tag">' + p.modified.length + ' tocadas</span>' : '') +
+      '<div class="ttl"><span class="avatar">' + esc(initials(p.name)) + '</span>' + esc(p.name) +
+      '<span class="tag acc">' + p.created.length + ' created</span>' +
+      (p.modified.length ? '<span class="tag">' + p.modified.length + ' touched</span>' : '') +
       '<span class="tag">' + p.commits + ' commits</span></div>' +
-      '<div class="desc" style="margin:8px 0 6px">Creó: ' + (porTipo(p.created) || '<i>nada</i>') + '</div>' +
-      (p.modified.length ? '<div class="desc" style="margin-bottom:6px">Tocó: ' + porTipo(p.modified) + '</div>' : '') +
-      '<div class="desc">Del ' + fecha(p.first) + ' al ' + fecha(p.last) + ' · ' +
+      '<div class="desc" style="margin:8px 0 6px">Created: ' + (byKind(p.created) || '<i>nothing</i>') + '</div>' +
+      (p.modified.length ? '<div class="desc" style="margin-bottom:6px">Touched: ' + byKind(p.modified) + '</div>' : '') +
+      '<div class="desc">From ' + fdate(p.first) + ' to ' + fdate(p.last) + ' · ' +
       p.emails.map((e) => '<code>' + esc(e) + '</code>').join(' ') +
-      (p.names.length > 1 ? ' · firma como ' + p.names.map(esc).join(', ') : '') + '</div></div>';
+      (p.names.length > 1 ? ' · signs as ' + p.names.map(esc).join(', ') : '') + '</div></div>';
   }
 
-  if (sinHistorial) {
-    h += '<div class="card"><div class="desc">' + sinHistorial + ' piezas quedan fuera de este recuento ' +
-      'porque no están en ningún repositorio (las de <code>~/.claude</code>) o están en <code>.gitignore</code> ' +
-      '(los <code>settings.local.json</code>). De esas no hay autoría que recuperar.</div></div>';
+  if (noHistory) {
+    h += '<div class="card"><div class="desc">' + noHistory + ' pieces are outside this count because they ' +
+      'are in no repository (the ones under <code>~/.claude</code>) or are gitignored (the ' +
+      '<code>settings.local.json</code> files). For those there is no authorship to recover.</div></div>';
   }
 
   $('#main').innerHTML = h;
   const sel = $('#repoSel');
-  if (sel) sel.onchange = () => renderPersonas(sel.value);
+  if (sel) sel.onchange = () => renderPeople(sel.value);
   $('#main').onclick = (e) => {
     const c = e.target.closest('[data-persona]');
-    if (c) return renderPersona(c.dataset.persona);
+    if (c) return renderPerson(c.dataset.persona);
   };
 }
 
-function renderPersona(id) {
+function renderPerson(id) {
   const p = PEOPLE.people.find((x) => x.id === id);
-  if (!p) return renderPersonas(PEOPLE.repo);
-  personaAbierta = id;
+  if (!p) return renderPeople(PEOPLE.repo);
+  openPerson = id;
 
-  const grupo = (titulo, lista, vacio) => {
-    if (!lista.length) return '<h2 class="sec">' + titulo + '</h2><div class="card"><div class="desc">' + vacio + '</div></div>';
-    const porTipo = {};
-    for (const x of lista) (porTipo[x.kind] ??= []).push(x);
-    let out = '<h2 class="sec">' + titulo + ' · ' + lista.length + '</h2>';
-    for (const [k, xs] of Object.entries(porTipo)) {
+  const group = (title, list, empty) => {
+    if (!list.length) return '<h2 class="sec">' + title + '</h2><div class="card"><div class="desc">' + empty + '</div></div>';
+    const byKind = {};
+    for (const x of list) (byKind[x.kind] ??= []).push(x);
+    let out = '<h2 class="sec">' + title + ' · ' + list.length + '</h2>';
+    for (const [k, xs] of Object.entries(byKind)) {
       out += '<div class="card"><div class="ttl">' + DATA.kinds[k].icon + ' ' + esc(DATA.kinds[k].label) +
         '<span class="tag">' + xs.length + '</span></div><div class="rules" style="margin-top:10px">' +
         xs.sort((a, b) => a.name.localeCompare(b.name)).map((x) => {
-          // La misma skill puede existir en dos paquetes del monorepo: sin el
-          // ámbito, el perfil enseña dos etiquetas idénticas.
-          const repetido = xs.filter((y) => y.name === x.name).length > 1;
-          const donde = repetido ? ' <span class="sc">' + esc(x.scope.split('/').slice(-2).join('/')) + '</span>' : '';
-          return '<span class="rule clk" data-id="' + esc(x.id) + '" style="cursor:pointer">' + esc(x.name) + donde + '</span>';
+          // The same skill can exist in two packages of a monorepo: without the
+          // scope, the profile shows two identical tags.
+          const repeated = xs.filter((y) => y.name === x.name).length > 1;
+          const where = repeated ? ' <span class="sc">' + esc(x.scope.split('/').slice(-2).join('/')) + '</span>' : '';
+          return '<span class="rule clk" data-id="' + esc(x.id) + '" style="cursor:pointer">' + esc(x.name) + where + '</span>';
         }).join('') +
         '</div></div>';
     }
@@ -379,17 +377,17 @@ function renderPersona(id) {
   };
 
   $('#main').innerHTML =
-    '<div class="back" data-volver>← Personas</div>' +
-    '<h1><span class="avatar big">' + esc(inicial(p.name)) + '</span>' + esc(p.name) + '</h1>' +
-    '<p class="lede">' + p.created.length + ' piezas creadas, ' + p.modified.length + ' tocadas después, ' +
-    p.commits + ' commits sobre la configuración. Del ' + fecha(p.first) + ' al ' + fecha(p.last) + '.</p>' +
+    '<div class="back" data-back-people>← People</div>' +
+    '<h1><span class="avatar big">' + esc(initials(p.name)) + '</span>' + esc(p.name) + '</h1>' +
+    '<p class="lede">' + p.created.length + ' pieces created, ' + p.modified.length + ' touched afterwards, ' +
+    p.commits + ' commits on the configuration. From ' + fdate(p.first) + ' to ' + fdate(p.last) + '.</p>' +
     '<div class="path">' + p.emails.map(esc).join(' · ') +
-    (p.names.length > 1 ? '<br>Firma como: ' + p.names.map(esc).join(', ') : '') + '</div>' +
-    grupo('Creó', p.created, 'No ha creado ninguna pieza en este repositorio.') +
-    grupo('Tocó después', p.modified, 'No ha modificado piezas de otros.');
+    (p.names.length > 1 ? '<br>Signs as: ' + p.names.map(esc).join(', ') : '') + '</div>' +
+    group('Created', p.created, 'Has not created any piece in this repository.') +
+    group('Touched afterwards', p.modified, 'Has not modified anyone else\'s pieces.');
 
   $('#main').onclick = (e) => {
-    if (e.target.closest('[data-volver]')) return renderPersonas(PEOPLE.repo);
+    if (e.target.closest('[data-back-people]')) return renderPeople(PEOPLE.repo);
     const c = e.target.closest('[data-id]');
     if (c) return openItem(c.dataset.id);
   };
@@ -402,17 +400,17 @@ function renderList(kind) {
   const groups = {};
   items.forEach((i) => { (groups[i.scope] ??= []).push(i); });
   let h = '<h1>' + info.label + '</h1><p class="lede">' + esc(info.blurb) + '</p>';
-  if (!items.length) h += '<div class="card"><div class="desc">No hay ninguna pieza de este tipo.</div></div>';
+  if (!items.length) h += '<div class="card"><div class="desc">There is no piece of this kind.</div></div>';
   for (const [scope, list] of Object.entries(groups)) {
     h += '<h2 class="sec">' + esc(scope) + ' · ' + list.length + '</h2>';
     for (const it of list) {
       h += '<div class="card clk" data-id="' + it.id + '"><div class="ttl">' + esc(it.title) +
         (it.name !== it.title ? ' <span class="tag">' + esc(it.name) + '</span>' : '') +
-        (it.hallazgos ? ' <span class="tag ' + SEV[it.peor] + '">' + it.hallazgos +
-          (it.hallazgos === 1 ? ' hallazgo' : ' hallazgos') + '</span>' : '') +
-        (it.mencionado ? ' <span class="tag">citada en ' + it.mencionado + '</span>' : '') + '</div>' +
+        (it.findings ? ' <span class="tag ' + SEV[it.worst] + '">' + it.findings +
+          (it.findings === 1 ? ' finding' : ' findings') + '</span>' : '') +
+        (it.mentionedIn ? ' <span class="tag">mentioned in ' + it.mentionedIn + '</span>' : '') + '</div>' +
         (it.description ? '<div class="desc">' + esc(it.description.slice(0, 260)) +
-          (it.description.length > 260 ? '…' : '') + '</div>' : '<div class="desc" style="opacity:.6">Sin descripción.</div>') +
+          (it.description.length > 260 ? '…' : '') + '</div>' : '<div class="desc" style="opacity:.6">No description.</div>') +
         '</div>';
     }
   }
@@ -430,65 +428,65 @@ async function openItem(id) {
 function renderItem() {
   const dirty = text !== orig;
   const tabs = cur.format === 'json'
-    ? [['ui', 'Vista'], ['raw', 'JSON']]
-    : [['leer', 'Leer'], ['raw', 'Editar']];
-  let h = '<div class="back" data-back>← ' + (personaAbierta ? 'Perfil' : esc(DATA.kinds[cur.kind].label)) + '</div>' +
+    ? [['ui', 'Overview'], ['raw', 'JSON']]
+    : [['leer', 'Read'], ['raw', 'Edit']];
+  let h = '<div class="back" data-back>← ' + (openPerson ? 'Profile' : esc(DATA.kinds[cur.kind].label)) + '</div>' +
     '<h1>' + esc(cur.title) + '</h1>' +
     (cur.description ? '<p class="lede">' + esc(cur.description) + '</p>' : '') +
     '<div class="path">' + esc(cur.displayPath) + '</div>' +
     '<div class="tabs">' + tabs.map(([t, l]) =>
       '<div class="tab' + (tab === t ? ' on' : '') + '" data-t="' + t + '">' + l + '</div>').join('') + '</div>';
 
-  h += hallazgosDeLaPieza();
-  if (tab === 'ui' && cur.format === 'json') h += jsonUI() + historial();
+  h += pieceFindings();
+  if (tab === 'ui' && cur.format === 'json') h += jsonUI() + history();
   else if (tab === 'leer') h += '<div class="md">' + md(text) + '</div>' + actions();
   else h += '<textarea id="raw" spellcheck="false">' + esc(text) + '</textarea>';
 
-  // La barra sólo cuando hay algo que guardar. Antes se quedaba puesta con los
-  // botones apagados en la vista estructurada y al salir del editor sin tocar
-  // nada, dando a entender que había cambios pendientes.
+  // The bar only when there is something to save. It used to sit there with the
+  // buttons greyed out in the structured view and on leaving the editor without
+  // touching anything, implying there were pending changes.
   if (tab !== 'leer') h += '<div class="bar' + (dirty ? '' : ' oculta') + '">' +
-    '<button id="save"' + (dirty ? '' : ' disabled') + '>Guardar</button>' +
-    '<button class="ghost" id="reset"' + (dirty ? '' : ' disabled') + '>Descartar</button>' +
-    '<span class="msg' + (dirty ? ' warn' : '') + '" id="msg">' + (dirty ? 'cambios sin guardar' : '') + '</span></div>';
+    '<button id="save"' + (dirty ? '' : ' disabled') + '>Save</button>' +
+    '<button class="ghost" id="reset"' + (dirty ? '' : ' disabled') + '>Discard</button>' +
+    '<span class="msg' + (dirty ? ' warn' : '') + '" id="msg">' + (dirty ? 'unsaved changes' : '') + '</span></div>';
 
   $('#main').innerHTML = h;
   wire();
 }
 
-const fecha = (iso) => {
+const fdate = (iso) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso
-    : d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+    : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-function historial() {
+function history() {
   const g = cur.git || {};
   if (!g.tracked) {
-    const porque = g.reason === 'fuera de un repositorio'
-      ? 'Esta pieza no está dentro de un repositorio git, así que no hay autoría que mostrar: sólo la fecha del fichero.'
-      : 'Git no sigue este fichero (' + esc(g.reason || 'sin historial') + '), así que no hay autoría que mostrar.';
-    return '<h2 class="sec">Historial</h2><div class="card"><div class="desc">' + porque +
-      (cur.mtime ? ' Modificado por última vez el ' + fecha(cur.mtime) + '.' : '') + '</div></div>';
+    const why = g.reason === 'outside a repository'
+      ? 'This piece is not inside a git repository, so there is no authorship to show: only the file date.'
+      : 'Git does not track this file (' + esc(g.reason || 'no history') + '), so there is no authorship to show.';
+    return '<h2 class="sec">History</h2><div class="card"><div class="desc">' + why +
+      (cur.mtime ? ' Last modified on ' + fdate(cur.mtime) + '.' : '') + '</div></div>';
   }
   const { creator, lastChange, commits, authors } = g.history;
   const link = (c) => cur.remote
     ? '<a href="' + esc(cur.remote) + '/commit/' + esc(c.hash) + '" target="_blank" rel="noopener">' + esc(c.hash.slice(0, 7)) + '</a>'
     : '<code>' + esc(c.hash.slice(0, 7)) + '</code>';
 
-  let h = '<h2 class="sec">Historial</h2><div class="card">' +
-    '<div class="ttl">Creada por ' + esc(creator.author) + '<span class="tag">' + fecha(creator.date) + '</span></div>' +
-    '<div class="desc">Último cambio: ' + esc(lastChange.author) + ', ' + fecha(lastChange.date) + '. ' +
-    commits + (commits === 1 ? ' cambio en total' : ' cambios en total') +
-    (authors.length > 1 ? ', de ' + authors.length + ' personas' : '') + '.</div>';
+  let h = '<h2 class="sec">History</h2><div class="card">' +
+    '<div class="ttl">Created by ' + esc(creator.author) + '<span class="tag">' + fdate(creator.date) + '</span></div>' +
+    '<div class="desc">Last change: ' + esc(lastChange.author) + ', ' + fdate(lastChange.date) + '. ' +
+    commits + (commits === 1 ? ' change in total' : ' changes in total') +
+    (authors.length > 1 ? ', by ' + authors.length + ' people' : '') + '.</div>';
 
   if (authors.length > 1) {
     h += '<div class="rules" style="margin-top:10px">' + authors.map((a) =>
       '<span class="rule">' + esc(a.author) + ' <b style="cursor:default">' + a.commits + '</b></span>').join('') + '</div>';
   }
 
-  h += '<table style="margin-top:12px"><tr><th>Cuándo</th><th>Quién</th><th>Qué</th><th>Líneas</th></tr>' +
-    g.changes.map((c) => '<tr><td>' + fecha(c.date) + '</td><td>' + esc(c.author) + '</td>' +
+  h += '<table style="margin-top:12px"><tr><th>When</th><th>Who</th><th>What</th><th>Lines</th></tr>' +
+    g.changes.map((c) => '<tr><td>' + fdate(c.date) + '</td><td>' + esc(c.author) + '</td>' +
       '<td>' + esc(c.subject) + ' ' + link(c) + '</td>' +
       '<td class="cmd" style="white-space:nowrap">' +
       (c.added ? '<span style="color:var(--ok)">+' + c.added + '</span> ' : '') +
@@ -497,63 +495,62 @@ function historial() {
   return h;
 }
 
-/** La revisión del auditor, al lado de lo que hay. Va arriba del todo: es lo
- *  primero que quieres saber al abrir una pieza, no una nota a pie de página. */
-function hallazgosDeLaPieza() {
+/** The auditor's review, beside what you have. It goes at the very top: it is
+ *  the first thing you want on opening a piece, not a footnote. */
+function pieceFindings() {
   let h = '';
-  if (cur.hallazgos && cur.hallazgos.length) {
-    h += '<div class="card"><div class="ttl">Hallazgos de la auditoría<span class="tag err">' +
-      cur.hallazgos.length + '</span></div>' +
-      '<div class="desc" style="margin-bottom:10px">Lo que la última auditoría dijo de esta pieza. ' +
-      'Está aquí al lado de lo que hay, sin tocar nada.</div>' +
-      cur.hallazgos.map((f) => '<div class="perm" style="display:block">' +
+  if (cur.findings && cur.findings.length) {
+    h += '<div class="card"><div class="ttl">Audit findings<span class="tag err">' +
+      cur.findings.length + '</span></div>' +
+      '<div class="desc" style="margin-bottom:10px">What the last audit said about this piece. ' +
+      'It sits beside what you have, changing nothing.</div>' +
+      cur.findings.map((f) => '<div class="perm" style="display:block">' +
         '<div class="ttl" style="font-size:13.5px"><span class="tag ' +
         (f.severity === 'alta' ? 'err' : f.severity === 'media' ? 'warn' : '') + '">' + esc(f.severity) + '</span>' +
         esc(f.title) + '</div>' +
         '<div class="desc" style="margin-top:4px">' + esc(f.what) + '</div>' +
-        '<div class="desc" style="margin-top:4px"><b>Propuesta:</b> ' + esc(f.proposal) + '</div>' +
+        '<div class="desc" style="margin-top:4px"><b>Proposal:</b> ' + esc(f.proposal) + '</div>' +
         (f.notion
           ? '<div class="desc" style="margin-top:7px"><a href="' + esc(f.notion.url) + '" target="_blank" rel="noopener">' +
-            'Ver el hallazgo en Notion</a>' +
-            (f.notion.recurrences > 1 ? ' · detectado ' + f.notion.recurrences + ' veces' : '') + '</div>' +
+            'Open the finding in the tracker</a>' +
+            (f.notion.recurrences > 1 ? ' · seen ' + f.notion.recurrences + ' times' : '') + '</div>' +
             copyBlock('/lp:task --from-finding ' + f.notion.url)
-          : '<div class="desc" style="margin-top:7px">Aún no está en Notion. ' +
-            'Lánzale la auditoría al agente <code>auditor-config</code> pidiéndole que publique.</div>') +
+          : '<div class="desc" style="margin-top:7px">Not published to a tracker yet.</div>') +
         '</div>').join('') + '</div>';
   }
-  if (cur.mencionan && cur.mencionan.length) {
-    h += '<div class="card"><div class="ttl">La auditoría la cita en otro hallazgo<span class="tag">' +
-      cur.mencionan.length + '</span></div>' +
-      '<div class="desc" style="margin-bottom:9px">El hallazgo está colgado de otro fichero, pero habla de ' +
-      'esta pieza. Pasa con los hooks: el problema se define en <code>settings.json</code> y apunta a un ' +
-      'script que vive aparte.</div>' +
-      cur.mencionan.map((f) => '<div class="perm" style="display:block">' +
+  if (cur.mentions && cur.mentions.length) {
+    h += '<div class="card"><div class="ttl">Mentioned in another finding<span class="tag">' +
+      cur.mentions.length + '</span></div>' +
+      '<div class="desc" style="margin-bottom:9px">The finding hangs off another file but talks about this ' +
+      'piece. It happens with hooks: the problem is declared in <code>settings.json</code> and points at a ' +
+      'script living elsewhere.</div>' +
+      cur.mentions.map((f) => '<div class="perm" style="display:block">' +
         '<div class="ttl" style="font-size:13.5px"><span class="tag ' + (SEV[f.severity] || '') + '">' +
         esc(f.severity) + '</span>' + esc(f.title) + '</div>' +
         '<div class="desc" style="margin-top:4px">' + esc(f.what) + '</div>' +
-        '<div class="desc" style="margin-top:4px"><b>Propuesta:</b> ' + esc(f.proposal) + '</div>' +
-        '<div class="desc" style="margin-top:5px">Colgado de <code>' + esc(f.path) +
+        '<div class="desc" style="margin-top:4px"><b>Proposal:</b> ' + esc(f.proposal) + '</div>' +
+        '<div class="desc" style="margin-top:5px">Hangs off <code>' + esc(f.path) +
         (f.line ? ':' + f.line : '') + '</code></div></div>').join('') + '</div>';
   }
   return h;
 }
 
 function actions() {
-  let h = historial() + '<h2 class="sec">Acciones</h2>';
+  let h = history() + '<h2 class="sec">Actions</h2>';
   const label = DATA.kinds[cur.kind].one;
-  h += '<div class="card"><div class="ttl">Auditar con Claude</div>' +
-    '<div class="desc">Copia esto y pégalo en Claude Code: te dice si esta pieza se dispara cuando debe y si se solapa con otra.</div>' +
-    copyBlock('Audita ' + (cur.kind === 'skill' ? 'la skill' : 'el ' + label) + ' "' + cur.name + '" (' + cur.displayPath + '). ' +
-      'Mira si la descripción dispara en los casos reales, si se solapa con otra pieza, si el prompt es más largo de lo necesario ' +
-      'y qué obstáculos no está reportando. Informe primero, sin tocar nada.') + '</div>';
+  h += '<div class="card"><div class="ttl">Audit with Claude</div>' +
+    '<div class="desc">Copy this into Claude Code: it tells you whether this piece fires when it should and whether it overlaps another.</div>' +
+    copyBlock('Audit the ' + label + ' "' + cur.name + '" (' + cur.displayPath + '). Check whether its ' +
+      'description fires in real cases, whether it overlaps another piece, whether the prompt is longer ' +
+      'than it needs to be, and what obstacles it fails to report. Report first, change nothing.') + '</div>';
   if (cur.remote && cur.relPath) {
-    const title = 'Mejorar ' + label + ': ' + cur.name;
-    const bodyTxt = 'Fichero: ' + cur.relPath + '\n\nQué falla:\n- \n\nQué debería hacer:\n- \n';
+    const title = 'Improve ' + label + ': ' + cur.name;
+    const bodyTxt = 'File: ' + cur.relPath + '\n\nWhat is wrong:\n- \n\nWhat it should do:\n- \n';
     const url = cur.remote + '/issues/new?title=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(bodyTxt);
-    h += '<div class="card"><div class="ttl">Abrir issue en el repo</div>' +
-      '<div class="desc">Para lo técnico que no pasa por la board. Si tu equipo gestiona el trabajo en ' +
-      'otro sitio, el camino bueno es el hallazgo de arriba, no esto.</div>' +
-      '<div class="row"><a href="' + esc(url) + '" target="_blank" rel="noopener"><button>Crear issue en GitHub</button></a></div>' +
+    h += '<div class="card"><div class="ttl">Open an issue in the repo</div>' +
+      '<div class="desc">For the technical things that do not go through your team\'s board. If work is ' +
+      'tracked elsewhere, the finding above is the better route.</div>' +
+      '<div class="row"><a href="' + esc(url) + '" target="_blank" rel="noopener"><button>Create a GitHub issue</button></a></div>' +
       copyBlock('gh issue create --repo ' + cur.remote.replace('https://github.com/', '') +
         ' --title "' + title + '" --body "Fichero: ' + cur.relPath + '"') + '</div>';
   }
@@ -565,48 +562,48 @@ function setObj(o) { text = JSON.stringify(o, null, 2) + '\n'; renderItem(); }
 
 function jsonUI() {
   const p = parsed();
-  if (!p) return '<div class="card"><div class="msg err">El JSON no es válido. Arréglalo en la pestaña JSON.</div></div>';
+  if (!p) return '<div class="card"><div class="msg err">This JSON is not valid. Fix it in the JSON tab.</div></div>';
   const perm = p.permissions || {}, allow = perm.allow || [], deny = perm.deny || [];
-  const modes = [['default', 'Normal — pide permiso según las reglas'],
-    ['plan', 'Plan — tiene que enseñarte el plan antes de tocar nada'],
-    ['acceptEdits', 'Edición automática — acepta cambios de ficheros sin preguntar'],
-    ['bypassPermissions', 'Sin frenos — no pregunta nada (peligroso)']];
-  let h = '<div class="card"><div class="ttl">Cómo arranca una sesión en este ámbito</div>' +
-    '<div class="desc" style="margin-bottom:10px">Es el punto de control: decide si Claude puede ponerse a editar directamente o tiene que pasar por ti.</div>' +
+  const modes = [['default', 'Normal — asks for permission according to the rules'],
+    ['plan', 'Plan — must show you the plan before touching anything'],
+    ['acceptEdits', 'Auto-edit — accepts file changes without asking'],
+    ['bypassPermissions', 'No brakes — asks nothing (dangerous)']];
+  let h = '<div class="card"><div class="ttl">How a session starts in this scope</div>' +
+    '<div class="desc" style="margin-bottom:10px">This is the control point: it decides whether Claude can start editing straight away or has to go through you.</div>' +
     '<select id="mode">' + modes.map(([v, l]) =>
       '<option value="' + v + '"' + ((perm.defaultMode || 'default') === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>';
 
   const section = (titleTxt, descTxt, rules, key) => {
     let s = '<div class="card"><div class="ttl">' + titleTxt + ' <span class="tag">' + rules.length + '</span></div>' +
       '<div class="desc" style="margin-bottom:6px">' + descTxt + '</div>';
-    if (!rules.length) s += '<div class="desc" style="opacity:.6">Ninguna regla.</div>';
+    if (!rules.length) s += '<div class="desc" style="opacity:.6">No rules.</div>';
     rules.forEach((r, i) => {
       const e = explain(r);
       s += '<div class="perm"><code>' + esc(r) + '</code><div class="ex">' + esc(e.text) +
-        (e.level === 'broad' ? ' <span class="tag warn">amplio</span>' : '') +
-        (e.level === 'outbound' ? ' <span class="tag err">sale fuera</span>' : '') +
+        (e.level === 'broad' ? ' <span class="tag warn">broad</span>' : '') +
+        (e.level === 'outbound' ? ' <span class="tag err">outbound</span>' : '') +
         '</div><span class="x" data-del="' + key + ':' + i + '">&times;</span></div>';
     });
     s += '<div class="row"><input type="text" id="add_' + key + '" placeholder="Bash(npm test *)">' +
-      '<button class="ghost" data-add="' + key + '">Añadir</button></div></div>';
+      '<button class="ghost" data-add="' + key + '">Add</button></div></div>';
     return s;
   };
-  h += section('Lo que puede hacer sin preguntarte', 'Cada regla es una puerta abierta. Cuantas menos y más estrechas, mejor.', allow, 'allow');
-  h += section('Lo que tiene prohibido', 'Esto gana siempre sobre lo anterior.', deny, 'deny');
+  h += section('What it can do without asking you', 'Every rule is an open door. The fewer and the narrower, the better.', allow, 'allow');
+  h += section('What it is forbidden to do', 'This always wins over the above.', deny, 'deny');
 
   const rows = [];
   for (const [ev, arr] of Object.entries(p.hooks || {}))
     for (const g of arr || []) for (const hk of g.hooks || [])
-      rows.push([ev, g.matcher || '(todo)', hk.command || '', hk.async ? 'en segundo plano' : (hk.timeout ? hk.timeout + 's máx' : '')]);
-  if (rows.length) h += '<div class="card"><div class="ttl">Lo que se ejecuta solo <span class="tag">' + rows.length + '</span></div>' +
-    '<div class="desc" style="margin-bottom:8px">Se dispara sin pedirte permiso cuando ocurre el evento. Es lo que conviene mirar con más calma.</div>' +
-    '<table><tr><th>Cuándo</th><th>Sobre qué</th><th>Qué ejecuta</th><th></th></tr>' +
+      rows.push([ev, g.matcher || '(everything)', hk.command || '', hk.async ? 'in the background' : (hk.timeout ? hk.timeout + 's max' : '')]);
+  if (rows.length) h += '<div class="card"><div class="ttl">What runs on its own <span class="tag">' + rows.length + '</span></div>' +
+    '<div class="desc" style="margin-bottom:8px">Fires without asking you when the event happens. This is what deserves the closest look.</div>' +
+    '<table><tr><th>When</th><th>On what</th><th>What it runs</th><th></th></tr>' +
     rows.map((r) => '<tr><td>' + esc(r[0]) + '</td><td class="cmd">' + esc(r[1]) + '</td><td class="cmd">' +
       esc(r[2].length > 170 ? r[2].slice(0, 170) + '…' : r[2]) + '</td><td>' + esc(r[3]) + '</td></tr>').join('') +
-    '</table><div class="desc" style="margin-top:9px">Para cambiarlos, pestaña JSON.</div></div>';
+    '</table><div class="desc" style="margin-top:9px">To change them, use the JSON tab.</div></div>';
 
   const rest = Object.entries(p).filter(([k]) => !['permissions', 'hooks'].includes(k));
-  if (rest.length) h += '<div class="card"><div class="ttl">Otros ajustes</div><table>' + rest.map(([k, v]) =>
+  if (rest.length) h += '<div class="card"><div class="ttl">Other settings</div><table>' + rest.map(([k, v]) =>
     '<tr><td><code>' + esc(k) + '</code></td><td class="cmd">' + esc(typeof v === 'object' ? JSON.stringify(v) : String(v)) + '</td></tr>').join('') + '</table></div>';
   return h;
 }
@@ -615,7 +612,7 @@ function wire() {
   const main = $('#main');
   main.onclick = (e) => {
     if (e.target.closest('[data-back]')) {
-      if (personaAbierta) return renderPersona(personaAbierta);
+      if (openPerson) return renderPerson(openPerson);
       return go(cur.kind);
     }
     const t = e.target.closest('.tab');
@@ -623,10 +620,10 @@ function wire() {
       if (tab === 'raw') { const ta = $('#raw'); if (ta) text = ta.value; }
       tab = t.dataset.t;
       renderItem();
-      // Con los hallazgos y el historial delante, el editor queda abajo del
-      // todo: cambiar de pestaña y no ver lo que has abierto es desconcertante.
-      // (Sólo al cambiar de pestaña: renderItem() también corre al editar un
-      // permiso, y ahí mover el scroll te haría perder el sitio.)
+      // With findings and history in front of it, the editor sits far below:
+      // switching tab and seeing nothing happen is disorienting. Only on a tab
+      // change: renderItem() also runs when editing a permission, and moving
+      // the scroll there would lose your place.
       const ta = $('#raw');
       if (tab === 'raw' && ta) {
         ta.scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -651,10 +648,10 @@ function wire() {
   if (ta) ta.oninput = () => { text = ta.value; const d = text !== orig, m = $('#msg');
     let bad = false; if (cur.format === 'json') { try { JSON.parse(text); } catch { bad = true; } }
     ta.classList.toggle('bad', bad);
-    m.textContent = bad ? 'JSON inválido' : (d ? 'cambios sin guardar' : '');
+    m.textContent = bad ? 'invalid JSON' : (d ? 'unsaved changes' : '');
     m.className = 'msg' + (bad ? ' err' : (d ? ' warn' : ''));
     $('#save').disabled = !d || bad; $('#reset').disabled = !d;
-    // Aparece al primer cambio y desaparece si lo deshaces a mano.
+    // Appears on the first change and goes away if you undo it by hand.
     const barra = $('.bar');
     if (barra) barra.classList.toggle('oculta', !d && !bad); };
   const rst = $('#reset'); if (rst) rst.onclick = () => { text = orig; renderItem(); };
@@ -663,14 +660,14 @@ function wire() {
       body: JSON.stringify({ id: cur.id, content: text }) })).json();
     const m = $('#msg');
     if (r.error) { m.textContent = r.error; m.className = 'msg err'; return; }
-    orig = text; m.textContent = 'guardado · copia en ' + r.backup; m.className = 'msg ok';
+    orig = text; m.textContent = 'saved · backup at ' + r.backup; m.className = 'msg ok';
     $('#save').disabled = true; $('#reset').disabled = true;
-    // Un momento para leer la confirmación y la barra se retira.
+    // A moment to read the confirmation, then the bar retires.
     setTimeout(() => { const b = $('.bar'); if (b && text === orig) b.classList.add('oculta'); }, 2200); };
 }
 boot();
 
-// Expuesto para depurar desde la consola del navegador.
+// Exposed for debugging from the browser console.
 Object.assign(window, { go, openItem, md, explain });
-// Object.assign copiaría el valor, no el getter: DATA cambia, así que va aparte.
+// Object.assign would copy the value, not the getter: DATA changes, so it goes separately.
 Object.defineProperty(window, 'DATA', { get: () => DATA });

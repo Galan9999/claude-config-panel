@@ -2,41 +2,41 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { md } from '../ui/markdown.js';
 
-test('cabeceras y párrafos', () => {
-  assert.match(md('# Título\n\nUn párrafo.'), /<h1>Título<\/h1>.*<p>Un párrafo\.<\/p>/s);
+test('headings and paragraphs', () => {
+  assert.match(md('# Title\n\nA paragraph.'), /<h1>Title<\/h1>.*<p>A paragraph\.<\/p>/s);
 });
 
-test('se salta el frontmatter', () => {
+test('skips the frontmatter', () => {
   assert.doesNotMatch(md('---\nname: x\n---\n\n# Hola'), /name/);
 });
 
-test('listas con viñetas y numeradas', () => {
+test('bulleted and numbered lists', () => {
   assert.match(md('- uno\n- dos'), /<ul><li>uno<\/li><li>dos<\/li><\/ul>/);
   assert.match(md('1. uno\n2. dos'), /<ol><li>uno<\/li>/);
 });
 
-test('tablas', () => {
+test('tables', () => {
   const h = md('|a|b|\n|-|-|\n|1|2|');
   assert.match(h, /<table><tr><th>a<\/th>/);
   assert.match(h, /<td>1<\/td>/);
 });
 
-test('negrita, enlaces y código en línea', () => {
+test('bold, links and inline code', () => {
   assert.match(md('**fuerte**'), /<strong>fuerte<\/strong>/);
   assert.match(md('[t](https://e.com)'), /<a href="https:\/\/e\.com"/);
   assert.match(md('x ' + String.fromCharCode(96) + 'code' + String.fromCharCode(96)), /<code>code<\/code>/);
 });
 
-test('bloques de código', () => {
+test('code blocks', () => {
   const f = String.fromCharCode(96).repeat(3);
   assert.match(md(f + 'bash\nnpm test\n' + f), /<pre><code>npm test/);
 });
 
-test('escapa el HTML del contenido', () => {
+test('escapes HTML in the content', () => {
   assert.match(md('<script>alert(1)</script>'), /&lt;script&gt;/);
   assert.doesNotMatch(md('<img onerror=x>'), /<img/);
 });
 
-test('un documento vacío no revienta', () => {
+test('an empty document does not blow up', () => {
   assert.equal(md(''), '');
 });

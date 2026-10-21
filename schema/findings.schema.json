@@ -1,53 +1,145 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Galan9999/claude-config-panel/schema/findings.schema.json",
-  "title": "Hallazgos de una auditoría de configuración de Claude Code",
+  "title": "Findings from an audit of a Claude Code configuration",
   "type": "object",
-  "required": ["version", "generatedAt", "scope", "tool", "summary", "findings", "notChecked"],
+  "required": [
+    "version",
+    "generatedAt",
+    "scope",
+    "tool",
+    "summary",
+    "findings",
+    "notChecked"
+  ],
   "additionalProperties": false,
   "properties": {
-    "version": { "const": 1 },
-    "generatedAt": { "type": "string", "format": "date-time" },
-    "tool": { "type": "string", "description": "Quién produjo los hallazgos, p. ej. auditor-config o cc-audit." },
+    "version": {
+      "const": 1
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tool": {
+      "type": "string",
+      "description": "Who produced the findings, e.g. auditor-config or cc-audit."
+    },
     "scope": {
       "type": "object",
-      "required": ["path", "kind"],
+      "required": [
+        "path",
+        "kind"
+      ],
       "additionalProperties": false,
       "properties": {
-        "path": { "type": "string", "description": "Raíz auditada. ~ para el home." },
-        "kind": { "enum": ["repo", "global"] }
+        "path": {
+          "type": "string",
+          "description": "The audited root. ~ for the home directory."
+        },
+        "kind": {
+          "enum": [
+            "repo",
+            "global"
+          ]
+        }
       }
     },
-    "summary": { "type": "string", "description": "Qué harías hoy si sólo pudieras hacer una cosa." },
+    "summary": {
+      "type": "string",
+      "description": "What you would do today if you could only do one thing."
+    },
     "findings": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "severity", "category", "title", "path", "what", "proposal"],
+        "required": [
+          "id",
+          "severity",
+          "category",
+          "title",
+          "path",
+          "what",
+          "proposal"
+        ],
         "additionalProperties": false,
         "properties": {
-          "id": { "type": "string", "pattern": "^[a-z0-9-]+$", "description": "Estable entre auditorías: permite no abrir el mismo ticket dos veces." },
-          "severity": { "enum": ["alta", "media", "baja"] },
-          "category": {
-            "enum": ["permiso-amplio", "permiso-saliente", "permiso-sin-usar",
-                     "skill-sin-disparador", "solape", "prompt-largo",
-                     "hook-sin-limite", "huerfano", "otro"]
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$",
+            "description": "Stable across audits: lets the same problem avoid opening a second ticket."
           },
-          "title": { "type": "string", "maxLength": 100 },
-          "path": { "type": "string", "description": "Relativa a scope.path." },
-          "line": { "type": "integer", "minimum": 1 },
-          "what": { "type": "string", "description": "Qué pasa, en una o dos frases." },
-          "proposal": { "type": "string", "description": "Acción concreta. Nunca 'revisar'." },
+          "severity": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "category": {
+            "enum": [
+              "broad-permission",
+              "outbound-permission",
+              "unused-permission",
+              "skill-never-fires",
+              "overlap",
+              "bloated-prompt",
+              "unbounded-hook",
+              "orphan",
+              "other"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "path": {
+            "type": "string",
+            "description": "Relative to scope.path."
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "what": {
+            "type": "string",
+            "description": "What is happening, in one or two sentences."
+          },
+          "proposal": {
+            "type": "string",
+            "description": "A concrete action. Never \"review\"."
+          },
           "autofix": {
-            "type": ["object", "null"],
-            "description": "Sólo cuando el arreglo es mecánico y seguro. null si no lo es.",
-            "required": ["kind", "file"],
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Only when the fix is mechanical and safe. null when it is not.",
+            "required": [
+              "kind",
+              "file"
+            ],
             "properties": {
-              "kind": { "enum": ["quitar-permiso", "reemplazar-permiso", "añadir-timeout"] },
-              "file": { "type": "string" },
-              "rule": { "type": "string" },
-              "replacement": { "type": "string" },
-              "timeout": { "type": "integer", "minimum": 1 }
+              "kind": {
+                "enum": [
+                  "remove-permission",
+                  "replace-permission",
+                  "add-timeout"
+                ]
+              },
+              "file": {
+                "type": "string"
+              },
+              "rule": {
+                "type": "string"
+              },
+              "replacement": {
+                "type": "string"
+              },
+              "timeout": {
+                "type": "integer",
+                "minimum": 1
+              }
             }
           }
         }
@@ -55,8 +147,10 @@
     },
     "notChecked": {
       "type": "array",
-      "items": { "type": "string" },
-      "description": "Lo que no se pudo verificar y por qué. Vacío si no hay nada."
+      "items": {
+        "type": "string"
+      },
+      "description": "What could not be verified, and why. Empty if nothing."
     }
   }
 }

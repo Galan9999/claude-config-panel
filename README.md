@@ -259,9 +259,6 @@ The interface lives in real `.html`, `.css` and `.js` files served as static ass
 `ui/markdown.js` and `ui/permissions.js` are DOM-free ES modules, so the Node tests import exactly
 the same code the browser runs.
 
-> **Note**
-> The interface itself is currently in Spanish. Translating it is tracked as future work.
-
 ---
 
 ## License

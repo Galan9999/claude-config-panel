@@ -1,5 +1,5 @@
-// Renderizador de Markdown mínimo: cabeceras, listas, tablas, citas, código y
-// formato en línea. Suficiente para SKILL.md y CLAUDE.md, sin dependencias.
+// Minimal Markdown renderer: headings, lists, tables, quotes, code and inline
+// formatting. Enough for SKILL.md and CLAUDE.md, with no dependencies.
 import { esc } from './util.js';
 
 const BT = String.fromCharCode(96);

@@ -1,17 +1,17 @@
-// Quién creó y quién ha tocado cada pieza de configuración.
+// Who created and who has touched each piece of configuration.
 //
-// Sólo hay respuesta para lo que está versionado. ~/.claude no es un repo y los
-// settings.local.json están en .gitignore, así que de esos no se puede saber más
-// que la fecha del fichero. Es mejor decirlo que inventar un autor.
+// There is only an answer for what is versioned. ~/.claude is not a repo and the
+// settings.local.json files are gitignored, so for those nothing beyond the file
+// timestamp is knowable. Better to say so than to invent an author.
 
 import { execFileSync } from 'node:child_process';
 
-const REC = '\x1e'; // separador de commit
-const FLD = '\x1f'; // separador de campo
+const REC = '\x1e'; // commit separator
+const FLD = '\x1f'; // field separator
 
 /**
- * Convierte la salida de `git log --numstat` en historial. Separado de la
- * llamada a git para poder probarlo sin montar un repo.
+ * Turns `git log --numstat` output into history. Kept separate from the git call
+ * so it can be tested without building a repo.
  */
 export function parseGitLog(stdout) {
   const commits = [];
@@ -35,13 +35,13 @@ export function parseGitLog(stdout) {
   return commits;
 }
 
-/** Resume una lista de commits: quién la creó, quién la tocó por última vez. */
+/** Summarises a list of commits: who created it, who last touched it. */
 export function summarize(commits) {
   if (!commits.length) return null;
   const byAuthor = new Map();
   for (const c of commits) byAuthor.set(c.author, (byAuthor.get(c.author) || 0) + 1);
   return {
-    // git log llega del más nuevo al más viejo: el creador es el último.
+    // git log comes newest first: the creator is the last one.
     creator: { author: commits.at(-1).author, date: commits.at(-1).date },
     lastChange: commits[0],
     commits: commits.length,
@@ -51,11 +51,11 @@ export function summarize(commits) {
 }
 
 /**
- * Historial de un fichero dentro de un repo.
+ * History of one file inside a repo.
  * @returns {{tracked: boolean, reason?: string, history?: object, changes?: object[]}}
  */
 export function fileHistory(repo, relPath, limit = 10) {
-  if (!repo || !relPath) return { tracked: false, reason: 'fuera de un repositorio' };
+  if (!repo || !relPath) return { tracked: false, reason: 'outside a repository' };
   let out;
   try {
     out = execFileSync('git', ['-C', repo, 'log', '--follow', '--numstat',
@@ -63,27 +63,27 @@ export function fileHistory(repo, relPath, limit = 10) {
       '-n', String(limit), '--', relPath],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 4e6 });
   } catch {
-    return { tracked: false, reason: 'git no pudo leer el historial' };
+    return { tracked: false, reason: 'git could not read the history' };
   }
   const commits = parseGitLog(out);
   if (!commits.length) {
-    return { tracked: false, reason: 'sin seguimiento en git (nuevo o ignorado)' };
+    return { tracked: false, reason: 'not tracked by git (new or ignored)' };
   }
   return { tracked: true, history: summarize(commits), changes: commits };
 }
 
-/* ---------- autoría de todo un repo de una sola pasada ---------- */
+/* ---------- authorship for a whole repo in one pass ---------- */
 
 const indexes = new Map(); // repo -> { head, index }
 
 /**
- * Un `git log` por fichero cuesta 60 ms. Con 177 piezas eso es demasiado, así
- * que aquí se pide el historial de `.claude` entero de una vez y se indexa por
- * ruta. Se usa `--no-renames`: seguir renombrados sólo funciona fichero a
- * fichero, y para el perfil de cada persona interesa quién trajo la pieza tal y
- * como está hoy. La vista de detalle sí usa `--follow`, que es más preciso.
+ * One `git log` per file costs 60 ms. With 177 pieces that is too much, so the
+ * whole history under `.claude` is asked for at once and indexed by path.
+ * `--no-renames` is used: following renames only works file by file, and for a
+ * person's profile what matters is who brought the piece in as it stands today.
+ * The detail view does use `--follow`, which is more precise.
  *
- * @returns {Map<string, object[]>} ruta relativa -> commits, del más nuevo al más viejo
+ * @returns {Map<string, object[]>} relative path -> commits, newest first
  */
 export function repoIndex(repo, paths = ['.claude', 'CLAUDE.md']) {
   if (!repo) return new Map();
@@ -119,14 +119,14 @@ export function repoIndex(repo, paths = ['.claude', 'CLAUDE.md']) {
 export function clearIndexCache() { indexes.clear(); }
 
 /**
- * Agrupa las piezas por persona.
+ * Groups pieces by person.
  *
- * "Creó" significa que es suyo el commit más antiguo que toca esa ruta; el resto
- * de quienes la tocaron cuentan como modificaciones. Las personas se agrupan por
- * email, porque el mismo humano aparece con varios nombres (`cgala`, `Carles
- * Galan`) según la máquina desde la que haya commiteado.
+ * "Created" means the oldest commit touching that path is theirs; everyone else
+ * who touched it counts as a modification. People are keyed by email, because
+ * the same human shows up under several names depending on the machine they
+ * committed from.
  *
- * @param {object[]} items piezas con repo y relPath
+ * @param {object[]} items pieces with repo and relPath
  * @param {(repo: string) => Map} getIndex
  */
 export function buildPeople(items, getIndex) {
@@ -166,7 +166,7 @@ export function buildPeople(items, getIndex) {
     .sort((a, b) => b.created.length - a.created.length || b.commits - a.commits);
 }
 
-/* ---------- unificar a la misma persona ---------- */
+/* ---------- merging the same person ---------- */
 
 const GENERIC = new Set(['admin', 'dev', 'developer', 'git', 'github', 'info', 'mail',
   'me', 'noreply', 'root', 'user', 'users', 'test', 'ci', 'bot', 'action', 'actions']);
@@ -174,19 +174,19 @@ const GENERIC = new Set(['admin', 'dev', 'developer', 'git', 'github', 'info', '
 const normName = (n) => (n || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 /**
- * Claves por las que dos identidades son la misma persona.
+ * The keys by which two identities are the same person.
  *
- * Hace falta porque el mismo humano commitea desde sitios distintos: el correo
- * del trabajo, el `12345+usuario@users.noreply.github.com` cuando edita en la
- * web, y el `usuario@MacBook-Air.local` de un portátil sin configurar. Ninguno
- * comparte email con los otros, así que por email solo no se juntan.
+ * Needed because the same human commits from different places: the work email,
+ * `12345+user@users.noreply.github.com` when editing on the web, and
+ * `user@MacBook-Air.local` from an unconfigured laptop. None of them shares an
+ * email with the others, so email alone never merges them.
  */
 export function identityKeys({ email = '', names = [] }) {
   const keys = new Set();
   const mail = email.toLowerCase().trim();
   if (mail) keys.add('e:' + mail);
-  // El local del correo también es un nombre: "cgala@MacBook-Air.local" tira del
-  // mismo hilo que el autor llamado "cgala".
+  // The local part of an address is a name too: "alex@MacBook-Air.local" pulls
+  // the same thread as an author called "alex".
   const local = mail.split('@')[0].replace(/^\d+\+/, '');
   if (local && !GENERIC.has(local)) keys.add('n:' + normName(local));
   for (const n of names) {
@@ -197,9 +197,9 @@ export function identityKeys({ email = '', names = [] }) {
 }
 
 /**
- * Funde las identidades que comparten alguna clave (unión de conjuntos).
- * Devuelve personas con `emails` y `names` de todas sus identidades, para que se
- * pueda ver qué se ha fusionado y detectar una fusión mal hecha.
+ * Merges identities sharing any key (union-find). Returns people carrying the
+ * `emails` and `names` of all their identities, so a bad merge can be spotted
+ * rather than trusted.
  */
 export function mergeIdentities(people) {
   const parent = new Map();
@@ -242,7 +242,7 @@ export function mergeIdentities(people) {
       for (const c of p.created) { out.created.push(c); seen.add(c.id); }
       for (const m of p.modified) out.modified.push(m);
     }
-    // Lo que una identidad creó no cuenta como modificado por otra de la misma persona.
+    // What one identity created does not count as modified by another of the same person.
     out.modified = out.modified.filter((m) => !seen.has(m.id));
     out.email = out.emails[0];
     merged.push(out);

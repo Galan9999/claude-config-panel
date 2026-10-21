@@ -7,123 +7,123 @@ const ok = () => ({
   generatedAt: '2026-10-21T16:00:00.000Z',
   tool: 'auditor-config',
   scope: { path: '~/repos/backend', kind: 'repo' },
-  summary: 'Quitar Bash(bash *) del allow.',
+  summary: 'Drop Bash(bash *) from allow.',
   findings: [{
-    id: 'permiso-bash-comodin',
-    severity: 'alta',
-    category: 'permiso-amplio',
-    title: 'Bash(bash *) permite ejecutar cualquier script',
+    id: 'wildcard-bash-permission',
+    severity: 'high',
+    category: 'broad-permission',
+    title: 'Bash(bash *) allows running any script',
     path: '.claude/settings.local.json',
     line: 4,
-    what: 'La regla deja correr cualquier fichero.',
-    proposal: 'Sustituirla por las tres invocaciones concretas que se usan.',
-    autofix: { kind: 'quitar-permiso', file: '.claude/settings.local.json', rule: 'Bash(bash *)' },
+    what: 'The rule lets any file be executed.',
+    proposal: 'Replace it with the three concrete invocations in use.',
+    autofix: { kind: 'remove-permission', file: '.claude/settings.local.json', rule: 'Bash(bash *)' },
   }],
   notChecked: [],
 });
 
-test('un informe correcto pasa', () => {
+test('a correct report passes', () => {
   assert.deepEqual(validateFindings(ok()), { ok: true, errors: [] });
 });
 
-test('autofix puede ser null', () => {
+test('autofix may be null', () => {
   const d = ok(); d.findings[0].autofix = null;
   assert.equal(validateFindings(d).ok, true);
 });
 
-test('line es opcional', () => {
+test('line is optional', () => {
   const d = ok(); delete d.findings[0].line;
   assert.equal(validateFindings(d).ok, true);
 });
 
-test('exige version 1', () => {
+test('requires version 1', () => {
   const d = ok(); d.version = 2;
-  assert.match(validateFindings(d).errors.join(), /version debe ser 1/);
+  assert.match(validateFindings(d).errors.join(), /version must be 1/);
 });
 
-test('exige notChecked aunque esté vacío', () => {
+test('requires notChecked even when empty', () => {
   const d = ok(); delete d.notChecked;
   assert.match(validateFindings(d).errors.join(), /notChecked/);
 });
 
-test('rechaza severidad y categoría inventadas', () => {
-  const d = ok(); d.findings[0].severity = 'crítica'; d.findings[0].category = 'cosa-rara';
+test('rejects invented severity and category', () => {
+  const d = ok(); d.findings[0].severity = 'critical'; d.findings[0].category = 'weird-thing';
   const e = validateFindings(d).errors.join();
   assert.match(e, /severity/);
-  assert.match(e, /category desconocida/);
+  assert.match(e, /category is unknown/);
 });
 
-test('rechaza ids repetidos: si no, se abren dos tickets del mismo hallazgo', () => {
+test('rejects duplicate ids: otherwise the same finding opens two tickets', () => {
   const d = ok(); d.findings.push({ ...d.findings[0] });
-  assert.match(validateFindings(d).errors.join(), /id repetido/);
+  assert.match(validateFindings(d).errors.join(), /is duplicated/);
 });
 
-test('rechaza un id que no es slug', () => {
-  const d = ok(); d.findings[0].id = 'Permiso Amplio';
+test('rejects an id that is not a slug', () => {
+  const d = ok(); d.findings[0].id = 'Broad Permission';
   assert.match(validateFindings(d).errors.join(), /slug/);
 });
 
-test('rechaza una propuesta que sólo dice "revisar"', () => {
-  const d = ok(); d.findings[0].proposal = 'Revisar este permiso.';
-  assert.match(validateFindings(d).errors.join(), /no puede ser "revisar"/);
+test('rejects a proposal that only says "review"', () => {
+  const d = ok(); d.findings[0].proposal = 'Review this permission.';
+  assert.match(validateFindings(d).errors.join(), /cannot be "review"/);
 });
 
-test('rechaza una fecha que no es fecha', () => {
+test('rejects a date that is not a date', () => {
   const d = ok(); d.generatedAt = 'ayer';
-  assert.match(validateFindings(d).errors.join(), /fecha ISO/);
+  assert.match(validateFindings(d).errors.join(), /ISO date/);
 });
 
-test('no revienta con basura', () => {
+test('does not blow up on garbage', () => {
   for (const v of [null, 42, 'texto', []]) assert.equal(validateFindings(v).ok, false);
 });
 
-test('un informe sin hallazgos es válido', () => {
-  const d = ok(); d.findings = []; d.summary = 'Nada que arreglar.';
+test('a report with no findings is valid', () => {
+  const d = ok(); d.findings = []; d.summary = 'Nothing to fix.';
   assert.equal(validateFindings(d).ok, true);
 });
 
-test('sortFindings ordena por severidad', () => {
-  const f = [{ severity: 'baja' }, { severity: 'alta' }, { severity: 'media' }];
-  assert.deepEqual(sortFindings(f).map((x) => x.severity), ['alta', 'media', 'baja']);
+test('sortFindings orders by severity', () => {
+  const f = [{ severity: 'low' }, { severity: 'high' }, { severity: 'medium' }];
+  assert.deepEqual(sortFindings(f).map((x) => x.severity), ['high', 'medium', 'low']);
 });
 
-test('un hallazgo puede llevar su página de Notion', () => {
+test('a finding may carry its tracker page', () => {
   const d = ok();
   d.findings[0].notion = { url: 'https://notion.so/abc', recurrences: 3 };
   assert.equal(validateFindings(d).ok, true);
 });
 
-test('rechaza un notion sin url o con recurrencias absurdas', () => {
+test('rejects a tracker entry with no url or absurd recurrences', () => {
   const a = ok(); a.findings[0].notion = { recurrences: 1 };
   assert.match(validateFindings(a).errors.join(), /notion\.url/);
   const b = ok(); b.findings[0].notion = { url: 'https://n.so/x', recurrences: 0 };
   assert.match(validateFindings(b).errors.join(), /recurrences/);
 });
 
-import { clavesDePieza, hallazgosQueCitan } from '../src/findings.mjs';
+import { pieceKeys, findingsMentioning } from '../src/findings.mjs';
 
-test('una pieza se reconoce por su ruta y por su nombre de fichero', () => {
-  assert.deepEqual(clavesDePieza('.claude/hooks/prettier-on-write.sh'),
+test('a piece is recognised by its path and by its filename', () => {
+  assert.deepEqual(pieceKeys('.claude/hooks/prettier-on-write.sh'),
     ['.claude/hooks/prettier-on-write.sh', 'prettier-on-write.sh']);
 });
 
-test('los nombres que lleva media configuración no valen para cruzar', () => {
-  assert.deepEqual(clavesDePieza('.claude/skills/x/SKILL.md'), ['.claude/skills/x/SKILL.md']);
-  assert.deepEqual(clavesDePieza('CLAUDE.md'), []);
-  assert.deepEqual(clavesDePieza('.claude/settings.local.json'), ['.claude/settings.local.json']);
+test('names half a configuration shares are no good for matching', () => {
+  assert.deepEqual(pieceKeys('.claude/skills/x/SKILL.md'), ['.claude/skills/x/SKILL.md']);
+  assert.deepEqual(pieceKeys('CLAUDE.md'), []);
+  assert.deepEqual(pieceKeys('.claude/settings.local.json'), ['.claude/settings.local.json']);
 });
 
-test('encuentra el hallazgo que habla de un script aunque cuelgue de otro fichero', () => {
+test('finds the finding that talks about a script even when it hangs off another file', () => {
   const f = [{
-    path: '.claude/settings.local.json', severity: 'alta', title: 'Hook de Prettier duplicado',
+    path: '.claude/settings.local.json', severity: 'high', title: 'Hook de Prettier duplicado',
     what: 'El mismo matcher lanza dos Prettier.',
     proposal: 'En ese caso ampliar prettier-on-write.sh, no duplicarlo.',
   }];
-  assert.equal(hallazgosQueCitan(f, '.claude/hooks/prettier-on-write.sh').length, 1);
+  assert.equal(findingsMentioning(f, '.claude/hooks/prettier-on-write.sh').length, 1);
 });
 
-test('un hallazgo no se cita a sí mismo', () => {
-  const f = [{ path: 'a/prettier-on-write.sh', severity: 'alta', title: 'x',
+test('a finding does not mention itself', () => {
+  const f = [{ path: 'a/prettier-on-write.sh', severity: 'high', title: 'x',
     what: 'prettier-on-write.sh falla', proposal: 'arreglarlo' }];
-  assert.deepEqual(hallazgosQueCitan(f, 'a/prettier-on-write.sh'), []);
+  assert.deepEqual(findingsMentioning(f, 'a/prettier-on-write.sh'), []);
 });

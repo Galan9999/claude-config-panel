@@ -11,14 +11,14 @@ function git(repo, args) {
   }).trim();
 }
 
-/** URL web del remoto `origin` si está en GitHub, o null. Cacheada por repo. */
+/** Web URL of the `origin` remote if it is on GitHub, else null. Cached per repo. */
 export function gitRemote(repo) {
   if (remotes.has(repo)) return remotes.get(repo);
   let web = null;
   try {
     const m = /github\.com[:/](.+?)(?:\.git)?$/.exec(git(repo, ['remote', 'get-url', 'origin']));
     if (m) web = 'https://github.com/' + m[1];
-  } catch { /* sin remoto, o sin git */ }
+  } catch { /* no remote, or no git */ }
   remotes.set(repo, web);
   return web;
 }
@@ -26,24 +26,24 @@ export function gitRemote(repo) {
 export function clearRemoteCache() { remotes.clear(); roots.clear(); }
 
 /**
- * Raíz del repositorio que contiene `dir`, o null.
+ * Root of the repository containing `dir`, or null.
  *
- * Importa más de lo que parece: en un monorepo, `apps/web/.claude` es un
- * proyecto a efectos del panel pero NO un repo. Y `git log --numstat` imprime
- * las rutas relativas a la raíz, así que para cruzar historial con ficheros hay
- * que hablar en coordenadas de la raíz, no de la carpeta del paquete.
+ * This matters more than it looks: in a monorepo, `apps/web/.claude` is a
+ * project as far as the panel is concerned but NOT a repo. And `git log
+ * --numstat` prints paths relative to the root, so to match history against
+ * files you have to speak in the root's coordinates, not the package's.
  */
 export function repoRoot(dir) {
   if (roots.has(dir)) return roots.get(dir);
   let root = null;
-  try { root = git(dir, ['rev-parse', '--show-toplevel']) || null; } catch { /* no es repo */ }
+  try { root = git(dir, ['rev-parse', '--show-toplevel']) || null; } catch { /* not a repo */ }
   roots.set(dir, root);
   return root;
 }
 
 /**
- * Un worktree enlazado tiene .git como FICHERO, no como carpeta. Su configuración
- * es la misma del repo principal, así que por defecto no la contamos dos veces.
+ * A linked worktree has .git as a FILE, not a folder. Its configuration is the
+ * main repo's, so by default we do not count it twice.
  */
 export function isLinkedWorktree(dir) {
   const dotgit = join(dir, '.git');

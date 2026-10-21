@@ -1,18 +1,18 @@
 import { readdirSync, readFileSync } from 'node:fs';
 
-/** readdir que devuelve [] en vez de lanzar: hay carpetas que no podemos leer. */
+/** readdir that returns [] instead of throwing: some folders we cannot read. */
 export function ls(dir) {
   try { return readdirSync(dir, { withFileTypes: true }); } catch { return []; }
 }
 
-/** readFile que devuelve '' en vez de lanzar. */
+/** readFile that returns '' instead of throwing. */
 export function read(p) {
   try { return readFileSync(p, 'utf8'); } catch { return ''; }
 }
 
 /**
- * Lee el frontmatter YAML de un .md. Sólo pares `clave: valor` de una línea,
- * que es todo lo que usan las skills y los agentes de Claude Code.
+ * Reads the YAML frontmatter of a .md file. Single-line `key: value` pairs only,
+ * which is all Claude Code skills and agents use.
  */
 export function frontmatter(text) {
   const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
@@ -26,8 +26,8 @@ export function frontmatter(text) {
 }
 
 /**
- * Las primeras líneas de comentario de un script son su documentación.
- * Se salta el shebang y para en la primera línea de código.
+ * A script's leading comment lines are its documentation.
+ * Skips the shebang and stops at the first line of code.
  */
 export function scriptDoc(text) {
   const out = [];

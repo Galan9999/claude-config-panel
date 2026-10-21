@@ -83,7 +83,7 @@ td.cmd{font:11.5px var(--mono);color:var(--dim);word-break:break-all}
 pre.copy{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:11px 13px;font:12px var(--mono);
   overflow-x:auto;margin:9px 0 0;white-space:pre-wrap;word-break:break-word}
 
-/* Etiquetas en línea: autores de una pieza, piezas de una persona. */
+/* Inline tags: a piece's authors, a person's pieces. */
 .rules{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px}
 .rule{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:4px 9px;
   font:12px var(--mono);display:inline-flex;align-items:center;gap:7px;line-height:1.4}

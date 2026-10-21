@@ -1,31 +1,25 @@
-// Cómo se llama cada cosa de cara al usuario. Un fichero `settings.local.json`
-// no le dice nada a nadie; "Configuración local del proyecto" sí.
+// What each thing is called in the interface. A file named `settings.local.json`
+// tells nobody anything; "Project-local settings" does.
 
-/** @returns {[titulo: string, descripcion: string]} */
+/** @returns {[title: string, description: string]} */
 export function describeConfig(file, isGlobal) {
   if (file === 'CLAUDE.md') return isGlobal
-    ? ['Instrucciones permanentes (global)', 'Reglas que Claude lee en todas tus sesiones, estés en el proyecto que estés. Es tu manual de estilo con él.']
-    : ['Instrucciones del proyecto', 'Reglas que Claude lee sólo al trabajar en este proyecto: convenciones, comandos, cosas que no debe tocar.'];
+    ? ['Standing instructions (global)', 'Rules Claude reads in every session, whatever project you are in. Your style guide with it.']
+    : ['Project instructions', 'Rules Claude reads only when working on this project: conventions, commands, things it must not touch.'];
   if (file === 'settings.json') return isGlobal
-    ? ['Configuración global', 'La base para todos los proyectos: permisos, hooks, apariencia. Lo que pongas en un proyecto manda sobre esto.']
-    : ['Configuración del proyecto', 'Se versiona en git, así que la comparte todo el equipo. Lo que vale para cualquiera que trabaje aquí.'];
+    ? ['Global settings', 'The baseline for every project: permissions, hooks, appearance. Anything you set in a project overrides this.']
+    : ['Project settings', 'Versioned in git, so the whole team shares it. What holds for anyone working here.'];
   if (file === 'settings.local.json') return isGlobal
-    ? ['Configuración global privada', 'Como la global, pero sólo tuya. Útil para permisos que no quieres dejar fijos.']
-    : ['Configuración local del proyecto', 'Sólo tuya: está en .gitignore y no la ve el equipo. Aquí van tus preferencias personales en este repo.'];
+    ? ['Private global settings', 'Like the global ones, but yours only. Useful for permissions you would rather not make permanent.']
+    : ['Project-local settings', 'Yours only: it is in .gitignore and the team never sees it. Your personal preferences in this repo.'];
   return [file, ''];
 }
 
 export const KIND_INFO = {
-  config:  { label: 'Configuración', one: 'ajuste',  icon: '⚙',  blurb: 'Permisos, hooks y preferencias. La global vale para todo; cada proyecto afina encima.' },
-  skill:   { label: 'Skills',        one: 'skill',   icon: '◆',  blurb: 'Instrucciones que Claude carga sólo cuando hacen falta. Su descripción es lo que decide si se activa o no.' },
-  agent:   { label: 'Agentes',       one: 'agente',  icon: '◇',  blurb: 'Subagentes con su propio contexto y sus propias herramientas, para delegar trabajo acotado.' },
-  command: { label: 'Comandos',      one: 'comando', icon: '/',  blurb: 'Los que invocas tú escribiendo barra. Hacen siempre lo mismo, sin depender de que Claude decida.' },
-  hook:    { label: 'Hooks y scripts', one: 'script', icon: '⚡', blurb: 'Lo que se ejecuta solo, sin pedirte permiso, cuando ocurre un evento. La pieza que más conviene revisar.' },
-  task:    { label: 'Tareas programadas', one: 'tarea', icon: '◷', blurb: 'Se lanzan por calendario, sin que tú estés delante.' },
-};
-
-/** La vista de personas no es un tipo de pieza, pero navega igual. */
-export const PEOPLE_INFO = {
-  label: 'Personas', icon: '◉',
-  blurb: 'Quién ha construido la configuración de estos repos: qué creó cada uno y qué ha tocado después.',
+  config:  { label: 'Settings',  one: 'setting', icon: '⚙',  blurb: 'Permissions, hooks and preferences. The global ones apply everywhere; each project refines them.' },
+  skill:   { label: 'Skills',    one: 'skill',   icon: '◆',  blurb: 'Instructions Claude loads only when they are needed. Their description is what decides whether they fire at all.' },
+  agent:   { label: 'Agents',    one: 'agent',   icon: '◇',  blurb: 'Subagents with their own context and their own tools, for delegating bounded work.' },
+  command: { label: 'Commands',  one: 'command', icon: '/',  blurb: 'The ones you invoke yourself with a slash. They always do the same thing, without depending on Claude deciding to.' },
+  hook:    { label: 'Hooks and scripts', one: 'script', icon: '⚡', blurb: 'What runs on its own, without asking you, when an event happens. The piece most worth reviewing.' },
+  task:    { label: 'Scheduled tasks', one: 'task', icon: '◷', blurb: 'Fired by the calendar, while you are not there.' },
 };

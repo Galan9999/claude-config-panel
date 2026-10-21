@@ -22,12 +22,12 @@ if (opts.version) { console.log(pkg.version); process.exit(0); }
 const server = createPanelServer(opts);
 server.on('error', (e) => {
   if (e.code === 'EADDRINUSE') {
-    console.error('El puerto ' + opts.port + ' está ocupado. Prueba con --port ' + (opts.port + 1) + '.');
+    console.error('Port ' + opts.port + ' is busy. Try --port ' + (opts.port + 1) + '.');
     process.exit(1);
   }
   throw e;
 });
 server.listen(opts.port, '127.0.0.1', () => {
   console.log(startupMessage(opts, discover(opts)));
-  console.log('Copias de seguridad en ~/.claude/backups/config-dashboard/  ·  Ctrl+C para parar');
+  console.log('Backups in ~/.claude/backups/config-dashboard/  ·  Ctrl+C to stop');
 });
