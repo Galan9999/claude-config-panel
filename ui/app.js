@@ -584,7 +584,23 @@ function wire() {
       return go(cur.kind);
     }
     const t = e.target.closest('.tab');
-    if (t) { if (tab === 'raw') { const ta = $('#raw'); if (ta) text = ta.value; } tab = t.dataset.t; return renderItem(); }
+    if (t) {
+      if (tab === 'raw') { const ta = $('#raw'); if (ta) text = ta.value; }
+      tab = t.dataset.t;
+      renderItem();
+      // Con los hallazgos y el historial delante, el editor queda abajo del
+      // todo: cambiar de pestaña y no ver lo que has abierto es desconcertante.
+      // (Sólo al cambiar de pestaña: renderItem() también corre al editar un
+      // permiso, y ahí mover el scroll te haría perder el sitio.)
+      const ta = $('#raw');
+      if (tab === 'raw' && ta) {
+        ta.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        ta.focus({ preventScroll: true });
+      } else {
+        $('#main').scrollTop = 0;
+      }
+      return;
+    }
     const d = e.target.closest('[data-del]');
     if (d) { const [k, i] = d.dataset.del.split(':'); const p = parsed(); p.permissions[k].splice(+i, 1); return setObj(p); }
     const a = e.target.closest('[data-add]');
