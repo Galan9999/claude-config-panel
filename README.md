@@ -71,6 +71,43 @@ auditor que lea las piezas e informe — qué se solapa, qué nunca se dispara, 
 permiso es más amplio de lo necesario — sin tocar nada. El panel trae el prompt
 preparado en cada pieza, en "Auditar con Claude".
 
+### El formato de hallazgos
+
+Para que esa auditoría sirva de algo más que de lectura, su salida tiene un
+contrato: `.claude/audit/findings.json`, descrito en
+[`schema/findings.schema.json`](schema/findings.schema.json) y validado por
+[`src/findings.mjs`](src/findings.mjs).
+
+```json
+{
+  "version": 1,
+  "generatedAt": "2026-10-21T16:40:00.000Z",
+  "tool": "auditor-config",
+  "scope": { "path": "~/repos/backend", "kind": "repo" },
+  "summary": "Quitar Bash(bash *) del allow.",
+  "findings": [{
+    "id": "permiso-bash-comodin",
+    "severity": "alta",
+    "category": "permiso-amplio",
+    "title": "Bash(bash *) permite ejecutar cualquier script",
+    "path": ".claude/settings.local.json",
+    "line": 4,
+    "what": "La regla deja correr cualquier fichero.",
+    "proposal": "Sustituirla por las tres invocaciones concretas que se usan.",
+    "autofix": { "kind": "quitar-permiso", "file": ".claude/settings.local.json", "rule": "Bash(bash *)" }
+  }],
+  "notChecked": []
+}
+```
+
+La validación es estricta a propósito: quien produce esto es un modelo de
+lenguaje o una herramienta de terceros. Los `id` tienen que ser estables entre
+auditorías —de ahí sale si un hallazgo abre ticket nuevo o ya tiene uno—, y una
+`proposal` que empiece por "revisar" se rechaza: tiene que decir qué hacer.
+
+El formato no depende de este panel. Cualquier auditor puede emitirlo, y
+`cc-audit --format json` es candidato a tener un adaptador.
+
 ## Desarrollo
 
 Sin dependencias, ni de ejecución ni de desarrollo. Todo lo que usa viene con
@@ -80,7 +117,7 @@ Node: el servidor es `node:http` y las pruebas son `node:test`.
 git clone https://github.com/Galan9999/claude-config-panel
 cd claude-config-panel
 npm start      # arranca el panel
-npm test       # 31 pruebas
+npm test       # 44 pruebas
 ```
 
 ### Estructura

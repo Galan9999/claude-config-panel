@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Galan9999/claude-config-panel/schema/findings.schema.json",
+  "title": "Hallazgos de una auditoría de configuración de Claude Code",
+  "type": "object",
+  "required": ["version", "generatedAt", "scope", "tool", "summary", "findings", "notChecked"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "tool": { "type": "string", "description": "Quién produjo los hallazgos, p. ej. auditor-config o cc-audit." },
+    "scope": {
+      "type": "object",
+      "required": ["path", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "description": "Raíz auditada. ~ para el home." },
+        "kind": { "enum": ["repo", "global"] }
+      }
+    },
+    "summary": { "type": "string", "description": "Qué harías hoy si sólo pudieras hacer una cosa." },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "category", "title", "path", "what", "proposal"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$", "description": "Estable entre auditorías: permite no abrir el mismo ticket dos veces." },
+          "severity": { "enum": ["alta", "media", "baja"] },
+          "category": {
+            "enum": ["permiso-amplio", "permiso-saliente", "permiso-sin-usar",
+                     "skill-sin-disparador", "solape", "prompt-largo",
+                     "hook-sin-limite", "huerfano", "otro"]
+          },
+          "title": { "type": "string", "maxLength": 100 },
+          "path": { "type": "string", "description": "Relativa a scope.path." },
+          "line": { "type": "integer", "minimum": 1 },
+          "what": { "type": "string", "description": "Qué pasa, en una o dos frases." },
+          "proposal": { "type": "string", "description": "Acción concreta. Nunca 'revisar'." },
+          "autofix": {
+            "type": ["object", "null"],
+            "description": "Sólo cuando el arreglo es mecánico y seguro. null si no lo es.",
+            "required": ["kind", "file"],
+            "properties": {
+              "kind": { "enum": ["quitar-permiso", "reemplazar-permiso", "añadir-timeout"] },
+              "file": { "type": "string" },
+              "rule": { "type": "string" },
+              "replacement": { "type": "string" },
+              "timeout": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
+      }
+    },
+    "notChecked": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Lo que no se pudo verificar y por qué. Vacío si no hay nada."
+    }
+  }
+}
