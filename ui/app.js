@@ -196,13 +196,45 @@ async function renderFlujos() {
   FLOWS = await (await fetch('/api/flows')).json();
   const { flows, desvios } = FLOWS;
 
+  // Carpetas de comandos sin numerar, para sugerirlas cuando no hay ningún flujo.
+  const porCarpeta = {};
+  for (const it of DATA.items) {
+    if (it.kind !== 'command' || !it.name.includes(':')) continue;
+    const f = it.name.split(':')[0];
+    porCarpeta[f] = (porCarpeta[f] || 0) + 1;
+  }
+  const sueltos = Object.entries(porCarpeta).map(([folder, n]) => ({ folder, n }))
+    .sort((a, b) => b.n - a.n);
+
   let h = '<h1>Flujos</h1><p class="lede">Secuencias de comandos numerados que forman un pipeline. ' +
     'Esto no es una explicación escrita a mano: sale de los propios ficheros, así que no puede quedarse ' +
     'desfasada respecto a lo que de verdad se ejecuta.</p>';
 
   if (!flows.length) {
-    h += '<div class="card"><div class="desc">No hay comandos numerados. Un flujo se detecta cuando una ' +
-      'carpeta de comandos tiene varios ficheros <code>N.nombre.md</code>.</div></div>';
+    // Esto no es un error ni le falta nada al repo: la mayoría no numera sus
+    // comandos. Pero una pantalla vacía parece una herramienta rota, así que
+    // conviene explicar de qué va la convención.
+    h += '<div class="card"><div class="ttl">Este repositorio no tiene flujos, y es lo normal</div>' +
+      '<div class="desc" style="margin-top:7px">Un flujo no es nada que haya que instalar ni declarar: es ' +
+      'una <b>convención de nombres</b>. La regla exacta: <b>dos o más</b> ficheros de una misma carpeta de ' +
+      'comandos cuyo nombre empiece por <code>&lt;número&gt;.</code>. El número sólo marca el orden — no ' +
+      'tienen que ser consecutivos ni empezar por 1, así que puedes dejar huecos para meter fases después.</div>' +
+      '<pre class="copy" style="cursor:default">.claude/commands/deploy/\n' +
+      '  1.check.md\n  2.build.md\n  3.ship.md</pre>' +
+      '<div class="desc" style="margin-top:10px">Con eso ya saldría dibujado <code>/deploy:*</code> con sus ' +
+      'tres fases, el modelo de cada una y lo que puede hacer fuera de tu máquina sin preguntar. No hay ' +
+      'carpeta cableada: funciona con el nombre que le pongas.</div>' +
+      '<div class="desc" style="margin-top:10px">Si tus comandos no van en secuencia, esta sección no te ' +
+      'hace falta. El panel no se inventa flujos donde no los hay.</div></div>';
+
+    if (sueltos.length) {
+      h += '<div class="card"><div class="ttl">Carpetas de comandos que tienes<span class="tag">' +
+        sueltos.length + '</span></div>' +
+        '<div class="desc" style="margin-bottom:9px">Por si alguna es en realidad una secuencia y sólo le ' +
+        'falta el número delante.</div><div class="rules">' +
+        sueltos.map((c) => '<span class="rule">' + esc(c.folder) + ' <b>' + c.n + '</b></span>').join('') +
+        '</div></div>';
+    }
   }
 
   for (const f of flows) {

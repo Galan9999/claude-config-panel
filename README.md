@@ -56,9 +56,25 @@ This is how you find out you have two Prettier hooks firing on every single writ
 
 ### Draws your command pipelines
 
-If a commands folder holds several `N.name.md` files, that is a pipeline. The panel renders it as an
-SVG diagram generated from the files themselves — no Mermaid, no CDN — showing each phase's model,
-which subagents it spawns, and **how many actions it can take outside your machine without asking**.
+Nothing to declare or install: it is a naming convention. **Two or more files in the same commands
+folder whose name starts with `<number>.`** are read as the phases of one process. The number only
+sets the order — they need not be consecutive nor start at 1, so you can leave gaps for phases you
+add later.
+
+```
+.claude/commands/deploy/
+  1.check.md
+  2.build.md
+  3.ship.md
+```
+
+That is enough for the panel to render `/deploy:*` as an SVG diagram generated from the files
+themselves — no Mermaid, no CDN — showing each phase's model, which subagents it spawns, and **how
+many actions it can take outside your machine without asking**. No folder is hardcoded; it works
+with whatever you name yours.
+
+If your commands are not a sequence, the section tells you so and explains the convention. It never
+invents a flow that is not there.
 
 It also flags **drift**: commands referenced in documentation that no longer exist, and paths
 mentioned that are not there. Documentation that describes a command nobody can run is a trap, and
