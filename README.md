@@ -106,6 +106,19 @@ auditor que lea las piezas e informe — qué se solapa, qué nunca se dispara, 
 permiso es más amplio de lo necesario — sin tocar nada. El panel trae el prompt
 preparado en cada pieza, en "Auditar con Claude".
 
+### El bucle: auditoría → hallazgo → ticket
+
+El panel enseña la revisión **al lado** de la pieza, sin modificarla: lo que hay
+a un lado, lo que el auditor dice al otro. De ahí no sale un PR automático, y es
+deliberado. Un parche que se aplica solo invita a aceptarlo sin leerlo, que es lo
+contrario de lo que persigue esto.
+
+Lo que sale es un **hallazgo**, y la promoción a tarea la hace una persona con un
+comando. El auditor publica los hallazgos donde el equipo ya gestione su trabajo
+y el panel ofrece el comando de promoción al lado de cada uno. Los `id` estables
+hacen que una segunda auditoría no duplique: incrementa el contador de
+recurrencias del hallazgo que ya existía.
+
 ### El formato de hallazgos
 
 Para que esa auditoría sirva de algo más que de lectura, su salida tiene un
@@ -152,7 +165,7 @@ Node: el servidor es `node:http` y las pruebas son `node:test`.
 git clone https://github.com/Galan9999/claude-config-panel
 cd claude-config-panel
 npm start      # arranca el panel
-npm test       # 94 pruebas
+npm test       # 96 pruebas
 ```
 
 ### Estructura

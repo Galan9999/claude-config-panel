@@ -344,12 +344,33 @@ function actions() {
     copyBlock('Audita ' + (cur.kind === 'skill' ? 'la skill' : 'el ' + label) + ' "' + cur.name + '" (' + cur.displayPath + '). ' +
       'Mira si la descripción dispara en los casos reales, si se solapa con otra pieza, si el prompt es más largo de lo necesario ' +
       'y qué obstáculos no está reportando. Informe primero, sin tocar nada.') + '</div>';
+  if (cur.hallazgos && cur.hallazgos.length) {
+    h += '<div class="card"><div class="ttl">Hallazgos de la auditoría<span class="tag err">' +
+      cur.hallazgos.length + '</span></div>' +
+      '<div class="desc" style="margin-bottom:10px">Lo que la última auditoría dijo de esta pieza. ' +
+      'Está aquí al lado de lo que hay, sin tocar nada.</div>' +
+      cur.hallazgos.map((f) => '<div class="perm" style="display:block">' +
+        '<div class="ttl" style="font-size:13.5px"><span class="tag ' +
+        (f.severity === 'alta' ? 'err' : f.severity === 'media' ? 'warn' : '') + '">' + esc(f.severity) + '</span>' +
+        esc(f.title) + '</div>' +
+        '<div class="desc" style="margin-top:4px">' + esc(f.what) + '</div>' +
+        '<div class="desc" style="margin-top:4px"><b>Propuesta:</b> ' + esc(f.proposal) + '</div>' +
+        (f.notion
+          ? '<div class="desc" style="margin-top:7px"><a href="' + esc(f.notion.url) + '" target="_blank" rel="noopener">' +
+            'Ver el hallazgo en Notion</a>' +
+            (f.notion.recurrences > 1 ? ' · detectado ' + f.notion.recurrences + ' veces' : '') + '</div>' +
+            copyBlock('/lp:task --from-finding ' + f.notion.url)
+          : '<div class="desc" style="margin-top:7px">Aún no está en Notion. ' +
+            'Lánzale la auditoría al agente <code>auditor-config</code> pidiéndole que publique.</div>') +
+        '</div>').join('') + '</div>';
+  }
   if (cur.remote && cur.relPath) {
     const title = 'Mejorar ' + label + ': ' + cur.name;
     const bodyTxt = 'Fichero: ' + cur.relPath + '\n\nQué falla:\n- \n\nQué debería hacer:\n- \n';
     const url = cur.remote + '/issues/new?title=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(bodyTxt);
-    h += '<div class="card"><div class="ttl">Abrir ticket en el repo</div>' +
-      '<div class="desc">Issue prellenado en ' + esc(cur.remote.replace('https://github.com/', '')) + ' con la ruta del fichero.</div>' +
+    h += '<div class="card"><div class="ttl">Abrir issue en el repo</div>' +
+      '<div class="desc">Para lo técnico que no pasa por la board. Si tu equipo gestiona el trabajo en ' +
+      'otro sitio, el camino bueno es el hallazgo de arriba, no esto.</div>' +
       '<div class="row"><a href="' + esc(url) + '" target="_blank" rel="noopener"><button>Crear issue en GitHub</button></a></div>' +
       copyBlock('gh issue create --repo ' + cur.remote.replace('https://github.com/', '') +
         ' --title "' + title + '" --body "Fichero: ' + cur.relPath + '"') + '</div>';

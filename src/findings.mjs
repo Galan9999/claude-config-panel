@@ -57,6 +57,16 @@ export function validateFindings(doc) {
     if (!isStr(f.what)) bad(at + '.what vacío');
     if (!isStr(f.proposal)) bad(at + '.proposal vacío');
     else if (/^revisar\b/i.test(f.proposal.trim())) bad(at + '.proposal no puede ser "revisar": di qué hacer');
+    if (f.notion !== undefined && f.notion !== null) {
+      if (typeof f.notion !== 'object') bad(at + '.notion debe ser un objeto o null');
+      else {
+        if (!isStr(f.notion.url)) bad(at + '.notion.url vacío');
+        if (f.notion.recurrences !== undefined &&
+            (!Number.isInteger(f.notion.recurrences) || f.notion.recurrences < 1)) {
+          bad(at + '.notion.recurrences debe ser un entero positivo');
+        }
+      }
+    }
     if (f.autofix !== undefined && f.autofix !== null) {
       if (typeof f.autofix !== 'object') bad(at + '.autofix debe ser un objeto o null');
       else {

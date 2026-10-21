@@ -86,3 +86,16 @@ test('sortFindings ordena por severidad', () => {
   const f = [{ severity: 'baja' }, { severity: 'alta' }, { severity: 'media' }];
   assert.deepEqual(sortFindings(f).map((x) => x.severity), ['alta', 'media', 'baja']);
 });
+
+test('un hallazgo puede llevar su página de Notion', () => {
+  const d = ok();
+  d.findings[0].notion = { url: 'https://notion.so/abc', recurrences: 3 };
+  assert.equal(validateFindings(d).ok, true);
+});
+
+test('rechaza un notion sin url o con recurrencias absurdas', () => {
+  const a = ok(); a.findings[0].notion = { recurrences: 1 };
+  assert.match(validateFindings(a).errors.join(), /notion\.url/);
+  const b = ok(); b.findings[0].notion = { url: 'https://n.so/x', recurrences: 0 };
+  assert.match(validateFindings(b).errors.join(), /recurrences/);
+});
