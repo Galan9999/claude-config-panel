@@ -50,16 +50,32 @@ npx claude-config-panel ~/mis-repos
 - **Abre tickets.** Desde cualquier pieza que viva en un repo de GitHub, un issue
   prellenado con la ruta del fichero.
 
+## Esto lee y **escribe** tu configuración
+
+No es sólo un visor: desde el panel puedes editar y guardar cualquier pieza. Cada
+guardado deja copia previa en `~/.claude/backups/config-dashboard/`, pero conviene
+saberlo antes de empezar a tocar.
+
 ## Seguridad
 
 - Escucha **sólo en 127.0.0.1**. No se expone a la red.
+- **Comprueba de dónde viene cada petición.** Escuchar en 127.0.0.1 no basta:
+  cualquier web abierta en tu navegador puede lanzarle peticiones. Con
+  `content-type: text/plain` sería una *simple request*, sin preflight, y la
+  escritura ocurriría aunque el atacante no pueda leer la respuesta — y la primera
+  pieza del inventario es `~/.claude/settings.json`, donde un hook se ejecuta solo
+  en tu siguiente sesión de Claude. Por eso se validan `Host` (lo que además cierra
+  el DNS rebinding) y `Origin`, y se exige `content-type: application/json`, que
+  obliga a preflight. Hay pruebas de regresión en `test/server.test.mjs`.
 - Sólo puede escribir en los ficheros de configuración que ha descubierto al
   arrancar. Cualquier otra ruta se rechaza.
 - Los estáticos se sirven de `ui/` sin subcarpetas ni `..`, así que no hay
   travesía de rutas.
-- Cada guardado deja copia previa en `~/.claude/backups/config-dashboard/`.
 - Los JSON se validan antes de escribirse: un fichero mal formado nunca llega a
   disco.
+
+Gracias a [@lluisfilella](https://github.com/LegalPigeonTeam) por detectar lo del
+`POST` sin comprobación de origen.
 
 No lo expongas fuera de tu máquina: lee tu configuración de Claude, que puede
 contener rutas, tokens de conectores y el contenido de tus tareas programadas.
@@ -117,7 +133,7 @@ Node: el servidor es `node:http` y las pruebas son `node:test`.
 git clone https://github.com/Galan9999/claude-config-panel
 cd claude-config-panel
 npm start      # arranca el panel
-npm test       # 44 pruebas
+npm test       # 53 pruebas
 ```
 
 ### Estructura

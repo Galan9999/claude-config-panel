@@ -34,13 +34,42 @@ function readBody(req) {
   });
 }
 
+/**
+ * ¿Viene la petición de la propia página del panel?
+ *
+ * El panel escucha en 127.0.0.1, pero eso NO lo protege del navegador: cualquier
+ * web abierta puede hacerle un POST. Con `content-type: text/plain` sería una
+ * "simple request", sin preflight, y el navegador la dejaría salir aunque no
+ * pueda leer la respuesta — la escritura ya habría ocurrido. Y el id 0 es
+ * ~/.claude/settings.json, donde un hook se ejecuta solo en la siguiente sesión.
+ *
+ * Tres comprobaciones lo cierran:
+ *  - `Host` debe ser el nuestro, lo que además frena el DNS rebinding en los GET;
+ *  - `Origin`, cuando viene, debe ser el nuestro;
+ *  - el cuerpo debe declararse `application/json`, que obliga a preflight y, como
+ *    no devolvemos cabeceras CORS, el navegador lo bloquea.
+ */
+function sameOrigin(req, port) {
+  const allowed = ['127.0.0.1:' + port, 'localhost:' + port, '[::1]:' + port];
+  if (!allowed.includes(req.headers.host)) return false;
+  const origin = req.headers.origin;
+  if (origin && !allowed.some((a) => origin === 'http://' + a)) return false;
+  return true;
+}
+
 export function createPanelServer(options = {}) {
+  const port = options.port ?? 7337;
   // La lista de piezas es también la lista blanca de escritura: sólo se puede
   // guardar en ficheros que el escaneo haya encontrado.
   let state = discover(options);
 
   return createServer(async (req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1');
+
+    if (!sameOrigin(req, port)) {
+      res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' });
+      return res.end('Petición rechazada: no viene del panel.');
+    }
 
     if (req.method === 'GET' && url.pathname === '/api/items') {
       state = discover(options);
@@ -59,6 +88,10 @@ export function createPanelServer(options = {}) {
     }
 
     if (req.method === 'POST' && url.pathname === '/api/item') {
+      // Exigirlo obliga a preflight en cualquier petición de otro origen.
+      if (!/^application\/json\b/.test(req.headers['content-type'] || '')) {
+        return send(res, 415, { error: 'se requiere content-type: application/json' });
+      }
       let payload;
       try { payload = JSON.parse(await readBody(req)); } catch { return send(res, 400, { error: 'petición inválida' }); }
       const it = state.items[Number(payload.id)];
