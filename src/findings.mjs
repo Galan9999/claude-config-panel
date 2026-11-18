@@ -11,7 +11,8 @@ import { join } from 'node:path';
 export const FINDINGS_PATH = join('.claude', 'audit', 'findings.json');
 export const SEVERITIES = ['high', 'medium', 'low'];
 export const CATEGORIES = ['broad-permission', 'outbound-permission', 'unused-permission',
-  'skill-never-fires', 'overlap', 'bloated-prompt', 'unbounded-hook', 'orphan', 'other'];
+  'skill-never-fires', 'skill-no-measured-effect', 'overlap', 'bloated-prompt',
+  'unbounded-hook', 'orphan', 'other'];
 
 const isStr = (v) => typeof v === 'string' && v.trim() !== '';
 
@@ -77,6 +78,34 @@ export function validateFindings(doc) {
       }
     }
   });
+
+  // Questions are optional and additive: a report written before they existed
+  // stays valid. They are the part of an audit that cannot be decided by
+  // reading files — only you know why a rule is there.
+  if (doc.questions !== undefined) {
+    if (!Array.isArray(doc.questions)) bad('questions must be an array');
+    else {
+      const asked = new Set();
+      doc.questions.forEach((q, i) => {
+        const at = 'questions[' + i + ']';
+        if (!q || typeof q !== 'object') return bad(at + ' is not an object');
+        if (!isStr(q.id) || !/^[a-z0-9-]+$/.test(q.id)) bad(at + '.id must be a lowercase slug');
+        else if (asked.has(q.id)) bad(at + '.id is duplicated: ' + q.id);
+        else asked.add(q.id);
+        if (!isStr(q.about)) bad(at + '.about is empty: name the rule or piece it is about');
+        if (!isStr(q.path)) bad(at + '.path is empty');
+        if (!isStr(q.question)) bad(at + '.question is empty');
+        else if (!q.question.includes('?')) bad(at + '.question must actually ask something');
+        if (!isStr(q.whyItMatters)) bad(at + '.whyItMatters is empty: say what the answer decides');
+        if (!Array.isArray(q.options) || q.options.length < 2) {
+          bad(at + '.options must offer at least two answers');
+        } else if (!q.options.every(isStr)) bad(at + '.options must all be non-empty strings');
+        if (q.findingId !== undefined && q.findingId !== null && !isStr(q.findingId)) {
+          bad(at + '.findingId must be a finding id or null');
+        }
+      });
+    }
+  }
 
   return { ok: errors.length === 0, errors };
 }
