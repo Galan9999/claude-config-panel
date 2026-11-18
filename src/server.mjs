@@ -7,9 +7,17 @@ import { BACKUPS, tilde } from './paths.mjs';
 import { read } from './fsutil.mjs';
 import { KIND_INFO } from './labels.mjs';
 import { discover } from './discover.mjs';
+import { discoverMods } from './mods.mjs';
 import { fileHistory, repoIndex, buildPeople, mergeIdentities, clearIndexCache } from './history.mjs';
 import { groupFlows, parseTools, findCommandRefs, findConfigPaths, brokenRefs, isFolderDoc } from './flows.mjs';
-import { loadFindings, findingsMentioning } from './findings.mjs';
+import { findingsMentioning } from './findings.mjs';
+import { currentFor, runsFor, readRun, saveRun, deleteRun, listSlugs } from './audits.mjs';
+import { discoverEvals, coverage, benchForItem, estimateCost, caseDetail } from './evals.mjs';
+import { scanUsage, usageForItems, benchCandidates } from './usage.mjs';
+import { applyPermissionOp, permissionSummary } from './permedit.mjs';
+import { readTools, mcpServers, connectorsInRules } from './tools.mjs';
+import { buildAgentMap, readLive, overlayLive, sddStatePath, EDGE_TYPES, NODE_TYPES } from './agentmap.mjs';
+import { readRoutines } from './routines.mjs';
 
 const UI_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'ui');
 const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml' };
@@ -67,6 +75,14 @@ export function createPanelServer(options = {}) {
   // The piece list is also the write allowlist: saving is only possible to
   // files the scan found.
   let state = discover(options);
+  // The settings files the scan found: the only ones the permission editor writes.
+  const settingsFiles = () => state.items.filter((i) => i.kind === 'config' && i.format === 'json' && i.editable);
+  const permissionEntry = (it) => {
+    let obj = null, error = null;
+    try { obj = JSON.parse(read(it.path) || '{}'); } catch (e) { error = e.message; }
+    return { id: it.id, scope: it.scope, name: it.name, title: it.title, path: tilde(it.path),
+      isGlobal: it.scope === 'Global', error, ...(obj ? permissionSummary(obj) : { defaultMode: 'default', allow: [], ask: [], deny: [] }) };
+  };
 
   return createServer(async (req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1');
@@ -83,7 +99,7 @@ export function createPanelServer(options = {}) {
       const porRepo = new Map();
       for (const it of state.items) {
         if (!it.repo || !it.relPath) continue;
-        if (!porRepo.has(it.repo)) porRepo.set(it.repo, loadFindings(it.repo).doc);
+        if (!porRepo.has(it.repo)) porRepo.set(it.repo, currentFor(it.repo).doc);
         const doc = porRepo.get(it.repo);
         if (!doc) continue;
         const mine = doc.findings.filter((f) => f.path === it.relPath);
@@ -104,23 +120,128 @@ export function createPanelServer(options = {}) {
       });
     }
 
+    // Read-only: the panel lists mods, it never edits them.
+    if (req.method === 'GET' && url.pathname === '/api/mods') {
+      return send(res, 200, { mods: await discoverMods() });
+    }
+
     if (req.method === 'GET' && url.pathname === '/api/findings') {
       const repos = [...new Set(state.items.filter((i) => i.repo).map((i) => i.repo))];
       const informes = [];
       for (const repo of repos) {
-        const { doc, errors, path } = loadFindings(repo);
+        const { doc, errors, path, source, slug } = currentFor(repo);
         if (!doc && !errors.length) continue;
         // Each finding is linked to the piece it concerns, when we can find it.
         const findings = (doc ? doc.findings : []).map((f) => {
           const piece = state.items.find((i) => i.repo === repo && i.relPath === f.path);
           return { ...f, itemId: piece ? piece.id : null, pieceName: piece ? piece.name : null };
         });
-        informes.push({ repo, repoLabel: tilde(repo), path: tilde(path),
+        informes.push({ repo, repoLabel: tilde(repo), path, source, slug,
           generatedAt: doc && doc.generatedAt, tool: doc && doc.tool,
           summary: doc && doc.summary, notChecked: (doc && doc.notChecked) || [],
           findings, errors });
       }
       return send(res, 200, { informes });
+    }
+
+    // The auditor's own tab: every stored run, by repo, newest first. Audits
+    // live in ~/.claude/audits so a report never lands inside the
+    // configuration it is reporting on.
+    if (req.method === 'GET' && url.pathname === '/api/audits') {
+      const slug = url.searchParams.get('slug'), run = url.searchParams.get('run');
+      if (slug && run) {
+        const { doc, errors, path } = readRun(slug, run);
+        return send(res, doc ? 200 : 422, { doc, errors, path: tilde(path), slug, run });
+      }
+      // Keyed by the folder that owns the `.claude`, not by the git root: in a
+      // monorepo, apps/web has its own configuration and deserves its own
+      // audit, and it would otherwise disappear behind the repo it sits in.
+      const scopes = [...new Set(state.items.filter((i) => i.project).map((i) => i.project))].sort();
+      const seen = new Set();
+      const audited = scopes.map((repo) => {
+        const cur = currentFor(repo);
+        seen.add(cur.slug);
+        return { repo, repoLabel: tilde(repo), slug: cur.slug, source: cur.source,
+          path: cur.path, errors: cur.errors, runs: cur.runs,
+          generatedAt: cur.doc && cur.doc.generatedAt,
+          summary: cur.doc && cur.doc.summary,
+          findings: cur.doc ? cur.doc.findings.length : 0,
+          questions: cur.doc && Array.isArray(cur.doc.questions) ? cur.doc.questions.length : 0,
+          notChecked: cur.doc ? cur.doc.notChecked.length : 0,
+          worst: cur.doc ? ['high', 'medium', 'low'].find(
+            (sev) => cur.doc.findings.some((f) => f.severity === sev)) || null : null };
+      });
+      // A repo that was audited and then moved or deleted still has a history,
+      // and losing sight of it would be the panel hiding its own data.
+      const orphans = [];
+      for (const s of listSlugs()) {
+        if (seen.has(s)) continue;
+        const runs = runsFor(s);
+        if (runs.length) orphans.push({ slug: s, runs, orphan: true });
+      }
+      return send(res, 200, { audited, orphans });
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/audits') {
+      if (!/^application\/json\b/.test(req.headers['content-type'] || '')) {
+        return send(res, 415, { error: 'se requiere content-type: application/json' });
+      }
+      let payload;
+      try { payload = JSON.parse(await readBody(req)); } catch { return send(res, 400, { error: 'invalid request' }); }
+      if (payload && payload.delete) {
+        const gone = deleteRun(payload.slug, payload.run);
+        return send(res, gone ? 200 : 404, gone ? { deleted: true } : { error: 'no such run' });
+      }
+      const saved = saveRun(payload);
+      return send(res, saved.ok ? 200 : 422,
+        saved.ok ? { slug: saved.slug, path: tilde(saved.path) } : { error: 'invalid report', errors: saved.errors });
+    }
+
+    // Evals: the only measurement that says whether a skill changes anything.
+    // The bench lives outside the audited repo (a `.claude` folder is not a
+    // plugin), so it is discovered on its own and tied back by the symlink
+    // each bench keeps to the real skill.
+    // One case, in full: the prompt, the rubric and what each arm answered.
+    // Loaded on demand — a score teaches nobody anything on its own, but the
+    // whole case is far too much to ship with the listing.
+    if (req.method === 'GET' && url.pathname === '/api/evals/case') {
+      const bench = url.searchParams.get('bench'), name = url.searchParams.get('case');
+      const { benches } = discoverEvals(options);
+      const b = benches.find((x) => x.name === bench);
+      if (!b) return send(res, 404, { error: 'no such bench' });
+      const detail = caseDetail(b.path, name || '');
+      return send(res, detail ? 200 : 404, detail || { error: 'no such case' });
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/evals') {
+      const { benches } = discoverEvals(options);
+      const runsWanted = Number(url.searchParams.get('runs')) || 3;
+      const shaped = benches.map((b) => ({
+        name: b.name, version: b.version, displayPath: b.displayPath, bank: b.bank,
+        cases: b.cases, casesWithoutGrader: b.casesWithoutGrader,
+        skills: b.skills.map((s) => ({ name: s.name, linked: s.linked, dangling: s.dangling,
+          target: s.target ? tilde(s.target) : null })),
+        agents: b.agents.map((a) => ({ name: a.name, file: a.file, linked: a.linked,
+          dangling: a.dangling })),
+        latest: b.latest ? { name: b.latest.name, ...b.latest.result } : null,
+        history: b.runs.filter((r) => r.result).map((r) => ({ name: r.name,
+          startedAt: r.result.startedAt, overallScore: r.result.overallScore,
+          meanDelta: r.result.meanDelta, costUsd: r.result.costUsd,
+          judgeModel: r.result.judgeModel, ablation: r.result.ablation,
+          durationSeconds: r.result.durationSeconds })),
+        estimate: b.estimate,
+        estimateSerious: estimateCost(b, { runs: runsWanted }),
+      }));
+      const cov = coverage(state.items, benches);
+      // Usage is the half of the picture that fills in by itself; the tab is
+      // where the two meet, because usage is what says which skill is worth
+      // paying to measure next.
+      const usage = scanUsage();
+      const { rows, silent, manual } = usageForItems(state.items, usage);
+      return send(res, 200, { benches: shaped, ...cov,
+        usage: { rows, silentCount: silent.length, manualCount: manual,
+          sessions: usage.files, distinct: usage.skills.length,
+          candidates: benchCandidates(rows, cov.covered.map((c) => c.name)) } });
     }
 
     if (req.method === 'GET' && url.pathname === '/api/flows') {
@@ -185,17 +306,83 @@ export function createPanelServer(options = {}) {
       });
     }
 
+    // What Claude can reach for, and what your settings say about each built-in tool.
+    if (req.method === 'GET' && url.pathname === '/api/tools') {
+      const files = settingsFiles().map((it) => ({ ...permissionEntry(it), fullPath: it.path,
+        label: (it.scope === 'Global' ? 'Global' : it.scope) + ' · ' + it.name }));
+      const projects = [...new Set(state.items.filter((i) => i.project).map((i) => i.project))];
+      return send(res, 200, readTools({ settingsFiles: files, projects, mods: await discoverMods() }));
+    }
+
+    // Everything on a schedule, and how it is launched. Read-only.
+    if (req.method === 'GET' && url.pathname === '/api/routines') {
+      return send(res, 200, readRoutines());
+    }
+
+    // The agent map: who opens, invokes, delegates to, hooks, schedules or
+    // calls whom. Rebuilt from disk on every request; ?live=1 adds the chats
+    // running now. Read-only.
+    if (req.method === 'GET' && url.pathname === '/api/agentmap') {
+      state = discover(options);
+      const files = settingsFiles().map((it) => ({ ...permissionEntry(it), label: (it.scope === 'Global' ? 'Global' : it.scope) + ' · ' + it.name }));
+      const projects = [...new Set(state.items.filter((i) => i.project).map((i) => i.project))];
+      const statePath = sddStatePath(options.sddState, process.env, projects);
+      let sddState = null;
+      try { sddState = statePath ? JSON.parse(read(statePath) || 'null') : null; } catch { /* broken: no roles */ }
+      const map = buildAgentMap({
+        items: state.items,
+        mods: options.mods || await discoverMods(),
+        routines: options.routines || readRoutines(),
+        mcp: mcpServers({ projects }),
+        connectors: connectorsInRules(files),
+        sddState,
+      });
+      if (url.searchParams.get('live') === '1') {
+        overlayLive(map, readLive({ statePath, sessionsDir: options.sessionsDir, titlesDir: options.titlesDir, isAlive: options.isAlive }));
+      }
+      return send(res, 200, { ...map, edgeTypes: EDGE_TYPES, nodeTypes: NODE_TYPES });
+    }
+
+    // Every permission rule of every settings file, read from disk now.
+    if (req.method === 'GET' && url.pathname === '/api/permissions') {
+      return send(res, 200, { files: settingsFiles().map(permissionEntry) });
+    }
+
+    // One edit to one settings file: re-read from disk, apply, back up, write.
+    if (req.method === 'POST' && url.pathname === '/api/permissions') {
+      if (!/^application\/json\b/.test(req.headers['content-type'] || '')) {
+        return send(res, 415, { error: 'se requiere content-type: application/json' });
+      }
+      let payload;
+      try { payload = JSON.parse(await readBody(req)); } catch { return send(res, 400, { error: 'invalid request' }); }
+      const it = settingsFiles().find((x) => payload && x.id === String(payload.id));
+      if (!it) return send(res, 403, { error: 'cannot write here' });
+      let obj;
+      try { obj = JSON.parse(read(it.path) || '{}'); } catch (e) { return send(res, 409, { error: 'the file is not valid JSON now: ' + e.message }); }
+      const r = applyPermissionOp(obj, payload);
+      if (r.error) return send(res, 422, { error: r.error, file: permissionEntry(it) });
+      if (!r.changed) return send(res, 200, { ok: true, changed: false, file: permissionEntry(it) });
+      try {
+        const copy = backup(it.path);
+        writeFileSync(it.path, JSON.stringify(r.obj, null, 2) + '\n', 'utf8');
+        return send(res, 200, { ok: true, changed: true, backup: tilde(copy), file: permissionEntry(it) });
+      } catch (e) { return send(res, 500, { error: String(e.message) }); }
+    }
+
     if (req.method === 'GET' && url.pathname === '/api/item') {
       const it = state.items[Number(url.searchParams.get('id'))];
       if (!it) return send(res, 404, { error: 'not found' });
       // History costs one git log per file: only when a piece is opened.
       // The auditor's review is shown beside the piece, without changing it.
-      const { doc } = it.repo ? loadFindings(it.repo) : { doc: null };
+      const { doc } = it.repo ? currentFor(it.repo) : { doc: null };
       const all = doc ? doc.findings : [];
       const findings = all.filter((f) => f.path === it.relPath);
       const mentions = findingsMentioning(all, it.relPath);
       return send(res, 200, { ...it, content: read(it.path),
-        git: fileHistory(it.repo, it.relPath), findings, mentions });
+        git: fileHistory(it.repo, it.relPath), findings, mentions,
+        bench: benchForItem(it, discoverEvals(options).benches),
+        usage: it.kind === 'skill'
+          ? usageForItems([it], scanUsage()).rows[0] : null });
     }
 
     if (req.method === 'POST' && url.pathname === '/api/item') {

@@ -11,7 +11,7 @@ There is no single screen that shows you all of it. This is that screen.
 [![License: MIT](https://img.shields.io/badge/license-MIT-D97757.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-5B8C51.svg)](package.json)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-5B8C51.svg)](package.json)
-[![Tests](https://img.shields.io/badge/tests-100-5B8C51.svg)](test)
+[![Tests](https://img.shields.io/badge/tests-185-5B8C51.svg)](test)
 
 </div>
 
@@ -57,10 +57,61 @@ Each rule is translated, and the ones that are wider than they look get flagged.
   <img src="https://raw.githubusercontent.com/Galan9999/claude-config-panel/main/docs/permissions.jpg" alt="Permissions translated into plain language, with broad and outbound rules flagged" width="820">
 </div>
 
+### Says why a rule should be the shape it is
+
+Every rule carries a *why it is like this, and what else it could be* panel: which family the
+command belongs to, what the prefix still admits once you look past the program's name, whether the
+rule is in the right file, and the narrower rule that does the same job.
+
+| Rule | Verdict | Because |
+|---|---|---|
+| `Bash(find *)` | `reconsider` | `find . -exec <anything> {} \;` runs that anything. It is an interpreter rule wearing a different name. |
+| `Bash(npm run *)` | `narrow it` | Grants whatever `package.json` says those scripts mean today, and the repo can change them. |
+| `Bash(gh pr *)` | `narrow it` | Covers `gh pr view` and, in the same breath, `gh pr merge` and `gh pr close`. |
+| `Bash(ls *)` | `redundant` | Plain read-only commands never needed a rule. |
+| `Bash(npm test)` | `reasonable` | No wildcard: it approves this command line and nothing adjacent. |
+
+The **Permissions guide** view holds the reference behind those verdicts — how a Bash pattern is
+matched (a prefix string, no flag analysis), what `allow` / `ask` / `deny` / `defaultMode` /
+`additionalDirectories` each do, the command families, and six questions to ask before adding a
+rule.
+
+### Says who decides in auto mode
+
+A permission rule is not the last word. In auto mode the prompt never reaches you: the action goes
+to a classifier on Anthropic's servers, which decides from rules of its own. The settings view spells
+that out next to the mode selector — whether this file can grant `"auto"` at all (only
+`~/.claude/settings.json`, a managed policy or `--permission-mode auto` can; the same value in a
+repo's settings is ignored), whether `autoMode.classifyAllShell` is suspending every `Bash` rule,
+and whatever `autoMode.{environment, allow, soft_deny, hard_deny, deny}` the file adds.
+
 ### Surfaces what runs on its own
 
 Hooks and scheduled tasks in one table: what triggers them, what they run, with what time limit.
 This is how you find out you have two Prettier hooks firing on every single write.
+
+### Lists your mods
+
+A mod is a change Claude Code makes to its own interface or behaviour: a panel, a band, a status
+line entry, a toast, a slash command, a hook on tool calls. They live in `~/.claude/mods/<name>/`
+and run as you. The **Mods** section reads each folder (`plugin.json`, `hooks/hooks.json` and the
+hooks module) and shows its description, version, whether your settings load it, the commands, the
+tools for the model and the hook events it registers, what it draws on, and whether it runs
+processes, touches files or calls a model. It reads names from the source; it never runs a mod and
+it does not edit one.
+
+### Separates MCP servers and routines
+
+**MCP servers** has its own section, grouped by where each one is declared (`~/.claude.json`,
+`.mcp.json`, a project): the command or URL and the *names* of the secrets it needs, never their
+values.
+
+**Routines** gathers everything that fires on a schedule, each with its definition: the local ones
+in `~/.claude/scheduled-tasks`, the cloud ones from your claude.ai account (name, cron, state, next
+and last run, connectors and prompt, redacted), and session loops. `/loop` and session cron jobs
+live in a running session's memory, not in a file, so only the ones that were active when the
+snapshot was generated can be shown. Cloud routines are not on disk either: the artifact edition
+shows them when whoever generates the snapshot adds them.
 
 ### Draws your command pipelines
 
@@ -105,11 +156,75 @@ shows you which identities it merged, so you can spot a bad merge instead of tru
 For anything outside git — `~/.claude` is not a repo, `settings.local.json` files are gitignored —
 it says so instead of inventing an author from a file timestamp.
 
+### Tracks whether a skill changes anything
+
+A skill that never fires is dead weight. A skill that fires and changes nothing is worse, because
+it reads like coverage. `claude plugin eval` answers both by running each case twice — with the
+skill and without it — and the **delta** between the arms is the only number that means something.
+A case that passes in both arms is measuring the base model.
+
+The **Evals** tab finds every bench on disk (a folder with `.claude-plugin/plugin.json` and an
+`evals/` directory — a `.claude/` folder is not a plugin, so the bench lives outside the repo and
+symlinks the skill in rather than copying it) and shows, per case: score with, score without, the
+delta, and how many runs actually invoked the skill. It separates the two failure modes: a low
+score means the skill is wrong, `0/3` fired means it never ran.
+
+| Case | with | without | Δ | fired |
+|---|---|---|---|---|
+| `1-positivo-contencion` | 1.00 | 0.00 | **+1.00** | 3/3 |
+| `2-negativo-rojo-real` | 1.00 | 0.33 | +0.67 | 0/3 — correct: it should stay quiet |
+
+It also costs the next run out of that bench's own history rather than a guess, flags a case with no
+grader and a symlink that no longer resolves, and lists which skills have a bench and which do not.
+Each skill's own page carries its delta, which is where it matters: when you are deciding whether
+to keep, rewrite or delete it.
+
+#### Agents too, with three rules that are not the skill ones
+
+A bench can measure a subagent, and the panel reads those the same way — but getting one to run at
+all turns on three things that cost real money to discover:
+
+**The agent file has to be a copy, not a symlink.** The opposite of the rule for skills. A symlink
+under `agents/` is silently not loaded: the plugin still resolves, the suite still runs, and every
+case scores zero exactly as if the agent had failed its own rubric. The only trace is in the
+model's own words — `Available agents: claude, Explore, general-purpose, …`, with your agent
+missing. The panel flags a symlinked agent as **not loaded**, and because a copy goes stale it
+hashes both files and flags a **stale copy** when the bench holds an older version than the one
+you are reading.
+
+**The dispatch name carries the plugin prefix** — `my-bench:code-reviewer`, not `code-reviewer`.
+The bare name fails with `Agent type not found`, and the model will decline to substitute a
+generic agent rather than pass it off as yours.
+
+**Run it with `--ablation none`.** The baseline arm has no plugin, so it cannot dispatch your agent
+even in principle: its score is zero every time and the Δ measures the absence of the plugin, not
+the agent. Without a baseline the score is read in absolute, and the panel labels it `no baseline`
+rather than the `no Δ` it shows for a bench that has genuinely never been compared.
+
+What is worth measuring also differs. For a skill you measure the trigger, because the model
+decides whether to load it. An agent dispatched by a slash command never faced that decision, so
+the `tool_used: Agent` grader is a check that it really ran, not a metric — and the score belongs
+on what the agent's contract adds that the base model lacks.
+
 ### Reads your audits, next to what they are about
 
-Point an auditing agent at a repo, have it write `.claude/audit/findings.json`, and the panel shows
-each finding beside the piece it concerns. Pieces with findings are marked in the listings, and a
-finding that names a piece without living in its file is cross-referenced to it.
+Point an auditing agent at a scope, have it write its report, and the panel shows each finding
+beside the piece it concerns. Pieces with findings are marked in the listings, and a finding that
+names a piece without living in its file is cross-referenced to it.
+
+Reports live in `~/.claude/audits/<scope-slug>/<timestamp>.json` — **outside** the configuration
+they are about. A report is an opinion about the config, not part of it: inside the repo it becomes
+one more piece to audit, one more thing to gitignore or commit, and the next run overwrites the
+last. The **Auditor** tab lists every scope the panel can see, audited or not, with its run history,
+and keeps reading an older in-repo `.claude/audit/findings.json` so nothing already written is lost.
+Scopes are keyed by the folder that owns the `.claude`, so a monorepo package like `apps/web` gets
+its own audit rather than disappearing behind the repo it sits in.
+
+A report can also carry **questions**: the things no amount of file-reading settles. A permission is
+not wrong for being wide, it is wrong when nothing you do needs it that wide — and only you know
+which. Each question names the exact rule, says what the answer decides, and offers the plausible
+answers. The tab hands you a prompt that walks them one at a time and opens a PR with whatever you
+agreed to.
 
 No automatic patches and no automatic PRs. A patch that applies itself invites you to accept it
 without reading it, which is the opposite of the point.
@@ -178,7 +293,7 @@ For an audit to be worth more than a read-through, its output needs a contract:
 [`src/findings.mjs`](src/findings.mjs).
 
 <details>
-<summary>Example <code>.claude/audit/findings.json</code></summary>
+<summary>Example report</summary>
 
 ```json
 {
@@ -225,7 +340,7 @@ the tests are `node:test`.
 git clone https://github.com/Galan9999/claude-config-panel
 cd claude-config-panel
 npm start      # run the panel
-npm test       # 100 tests
+npm test       # 185 tests
 ```
 
 <details>
@@ -241,7 +356,10 @@ src/
   history.mjs    Authorship and changes, via git log
   flows.mjs      Numbered command pipelines and drift detection
   findings.mjs   Audit findings schema and cross-referencing
+  audits.mjs     The audit store in ~/.claude/audits: runs, history, slugs
+  evals.mjs      Eval benches, per-case deltas, coverage and run cost
   discover.mjs   Filesystem walk and piece catalogue
+  mods.mjs       ~/.claude/mods, through the artifact scanner's reader
   server.mjs     HTTP routes, saving, backups
 ui/
   index.html     The page
@@ -249,15 +367,27 @@ ui/
   app.js         Navigation, listings, detail, editing
   markdown.js    Markdown renderer
   permissions.js Translates a permission rule into a sentence
+  advice.js      Why that rule, and the narrower one that would do
   util.js        HTML escaping and helpers
+  mods.js        Reads what a mod registers (shared with the artifact scanner)
 test/            Tests for the pure functions and the HTTP contract
 ```
 
 </details>
 
 The interface lives in real `.html`, `.css` and `.js` files served as static assets.
-`ui/markdown.js` and `ui/permissions.js` are DOM-free ES modules, so the Node tests import exactly
-the same code the browser runs.
+`ui/markdown.js`, `ui/permissions.js` and `ui/advice.js` are DOM-free ES modules, so the Node tests
+import exactly the same code the browser runs.
+
+## The artifact edition
+
+`artifact/` is a version that runs as a page, without Node: each person drops their folders and
+the snapshot is read in the browser and kept in their own private space. It has the same views plus
+**Mods**, **MCP servers** and **Routines**, lists pieces by kind and grouped by place (skills, agents,
+commands, hooks declared in settings, hook scripts, scheduled tasks), and speaks **English, Spanish
+and Catalan** (selector in the sidebar; a string not yet translated shows in English). The scanner
+is shared with an optional Node collector. `node artifact/build.mjs` builds `artifact/dist/`, the
+folder that gets published.
 
 ---
 
