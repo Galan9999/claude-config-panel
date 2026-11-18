@@ -143,6 +143,41 @@ It also flags **drift**: commands referenced in documentation that no longer exi
 mentioned that are not there. Documentation that describes a command nobody can run is a trap, and
 this finds it the day it breaks instead of months later.
 
+### Maps how your agents talk to each other
+
+The **Agent map** draws every piece that can start, call or watch another one — commands, skills,
+subagents, hooks, mods, routines, MCP servers, chats with a role — and the arrows between them, read
+from the files themselves. One arrow style per kind of interaction:
+
+| Arrow | Means |
+|---|---|
+| opens a chat | a mod opens a new session in its own window (`open`, `open_group`) |
+| invokes | `/x` or `Skill(x)`: the instructions load into the same context |
+| delegates | `subagent_type: x`: a subagent works in its own context and returns a summary |
+| fires a hook | a hook runs on an event or watches a tool, and can block or inject context |
+| schedules | a desktop routine, launchd, `/loop` or `/schedule` starts it without you |
+| calls an MCP | `mcp__server__tool`: Notion, Slack, GitHub… |
+| shared state | a coordinator's `state.json` or a `.sdd/` folder the phases leave for one another |
+
+An arrow is drawn only when the text says it in a form Claude Code acts on. When it rests on a bare
+mention — an agent's name in prose, "Notion" with no tool call — it is drawn faint and marked
+**assumed**. Four tabs:
+
+- **Flow** — only what interacts, left to right. *Trace from here* keeps what one piece sets in motion.
+- **Static** — every piece, one column per kind.
+- **Live** — the chats running now, with their role and phase, if a coordinator keeps a
+  `.sdd/_conductor/state.json` in one of the scanned projects (or `--sdd-state <file>`). Read-only.
+- **Audit** — broken `/ns:cmd` references, unknown `subagent_type`, calls into a repo the caller never
+  loads, names shadowed between global and a project, subagents nothing reaches (or only prose
+  does), hook matchers that match no tool, routines that will not run.
+
+Filter by kind and by **scope**: everything, global only, one repo, or a repo *as Claude sees it
+there* (global + that repo). Zoom with a pinch or ⌘/Ctrl + wheel, drag to move.
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/Galan9999/claude-config-panel/main/docs/agent-map.jpg" alt="The agent map's flow view: a routine starts a coordinator that opens chats and runs a four-phase pipeline, with subagents, hooks and MCP calls" width="820">
+</div>
+
 ### Shows who built what
 
 Per piece: who created it and when, who touched it since, how many lines each commit changed, and a
@@ -253,6 +288,7 @@ npx claude-config-panel ~/my-repos       # scan a specific folder
 | `--port <n>` | Port to listen on (default 7337) |
 | `--depth <n>` | How deep to look for `.claude/` folders (default 5 — enough for `<repo>/apps/<package>`) |
 | `--worktrees` | Include linked worktrees, skipped by default because they duplicate their repo's config |
+| `--sdd-state <file>` | The SDD coordinator's `state.json` for the agent map's live view (default: the first scanned project with `.sdd/_conductor/state.json`; also `CCP_SDD_STATE`) |
 | `--help` | Usage |
 | `CLAUDE_CFG_ROOTS=/a:/b` | Folders to scan, via environment variable |
 

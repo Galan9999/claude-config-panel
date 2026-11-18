@@ -40,9 +40,9 @@ export const NODE_TYPES = {
   command: { label: 'Commands', col: 4 },
   skill: { label: 'Skills', col: 5 },
   agent: { label: 'Subagents', col: 6 },
-  event: { label: 'Events', col: 7 },
-  tool: { label: 'Tools', col: 7 },
-  hook: { label: 'Hooks', col: 8 },
+  hook: { label: 'Hooks', col: 7 },
+  event: { label: 'Events', col: 8 },
+  tool: { label: 'Tools', col: 8 },
   mcp: { label: 'MCP servers', col: 9 },
   state: { label: 'Shared state', col: 9 },
 };
