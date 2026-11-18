@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="https://raw.githubusercontent.com/Galan9999/claude-config-panel/main/docs/logo.svg" alt="" width="120" height="120">
+
 # Claude Config Panel
 
 **See everything Claude Code is configured to do — and what runs on its own.**
