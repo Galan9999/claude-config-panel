@@ -13,6 +13,8 @@
     "bin",
     "src",
     "ui",
+    "artifact/core.js",
+    "artifact/mods.js",
     "README.md",
     "LICENSE"
   ],

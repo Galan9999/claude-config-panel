@@ -12,6 +12,7 @@ import {
 import { explain, MODES, autoModeGrant, classifierNote } from './permissions.js';
 import { advise, scopeAdvice } from './advice.js';
 import { esc, fdate, fwhen } from './util.js';
+import { summarize, summaryLine, findPrompt, KIND_LABEL } from './sources.js';
 import { t, LANGS, getLang, setLang } from './i18n.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -23,7 +24,7 @@ const S = {
   snap: null, saved: false, savedAt: null, origin: null,
   db: null, user: null, sample: null, downloads: null, uid: null, capsReady: false, loadingSaved: false,
   found: { scopes: [], benches: [], transcripts: null, claudeJson: null, roots: [] },
-  pick: new Set(), patterns: [...DEFAULT_EXCLUDE], name: '', countUsage: true,
+  loadMode: 'chosen', pick: new Set(), patterns: [...DEFAULT_EXCLUDE], name: '', countUsage: true,
   building: null, stop: false,
   audits: [], audit: null, auditing: null, auditLang: 'en', auditScope: 'all',
   filters: { kind: 'skill', scope: 'all', q: '' },
@@ -94,6 +95,10 @@ function render() {
   m.scrollTop = 0;
 }
 
+document.addEventListener('change', (e) => {
+  if (e.target.name === 'load-mode') { S.loadMode = e.target.value; render(); }
+});
+
 document.addEventListener('click', (e) => {
   const g = e.target.closest('[data-go]');
   if (g) { e.preventDefault(); go(g.dataset.go); return; }
@@ -131,8 +136,11 @@ function loadSteps() {
     'Every <code>.claude</code> inside is found. Nothing is uploaded while you look.</div></div>' +
     '<div class="step"><div class="k">Step 2</div><b>Check what goes in</b><div class="desc">Untick personal folders, edit the exclusion list. ' +
     'Tokens, keys, emails and env values are replaced before anything is kept.</div></div>' +
-    '<div class="step"><div class="k">Step 3</div><b>Save it, privately</b><div class="desc">Saved to your own space on this page. ' +
-    'Nobody else can open it, including whoever shared the page. Then run an audit.</div></div></div>';
+    (S.capsReady && !S.db
+      ? '<div class="step"><div class="k">Step 3</div><b>Look around</b><div class="desc">Nothing is saved: it lives in this tab and is gone when you close it. ' +
+        'For a copy that stays, run the panel on your machine with <code>npx claude-config-panel</code>.</div></div></div>'
+      : '<div class="step"><div class="k">Step 3</div><b>Save it, privately</b><div class="desc">Saved to your own space on this page. ' +
+        'Nobody else can open it, including whoever shared the page. Then run an audit.</div></div></div>');
 }
 
 /* ----------------------------------------------------------------- mods */
@@ -616,8 +624,19 @@ function vLoad() {
   const compiled = compilePatterns(S.patterns);
   const scopes = f.scopes;
   const busy = S.building;
-  return '<h1>Load my config</h1><p class="lede">Drop the folders where your Claude configuration lives. They are read here, in this tab. Only what you save leaves it, already redacted, and it goes to a space only you can open.</p>' +
+  const everything = S.loadMode === 'everything';
+  return '<h1>Load my config</h1><p class="lede">Drop the folders where your Claude configuration lives. They are read here, in this tab. ' +
+    (S.capsReady && !S.db ? 'This copy of the page has no private storage: nothing is saved anywhere, and closing the tab forgets it all.</p>'
+      : 'Only what you save leaves it, already redacted, and it goes to a space only you can open.</p>') +
     loadSteps() +
+    '<h2 class="sec">How much to load</h2><div class="grid src-modes">' +
+    '<label class="card clk' + (everything ? ' on' : '') + '"><div class="ttl"><input type="radio" name="load-mode" value="everything"' + (everything ? ' checked' : '') + '> Everything, then filter</div>' +
+    '<div class="desc">Drop your home folder, or run the collector on <code>~</code> (below). Every <code>.claude</code> is found; untick what you do not want in step 2. A whole home folder can take a while in the browser.</div></label>' +
+    '<label class="card clk' + (everything ? '' : ' on') + '"><div class="ttl"><input type="radio" name="load-mode" value="chosen"' + (everything ? '' : ' checked') + '> Only the folders I choose</div>' +
+    '<div class="desc">Drop <code>~/.claude</code> and just the repos you want to see. Drop more later and they are added.</div></label></div>' +
+    '<div class="card"><div class="ttl">Not sure where it lives? Ask Claude Code</div><div class="desc">Paste this into Claude Code: it lists the folders that hold configuration and what each one has, without opening or changing anything. ' +
+    'In Finder, <kbd>⌘ Shift G</kbd> takes a path, and <kbd>⌘ Shift .</kbd> shows hidden folders.</div>' +
+    '<pre class="src-prompt" id="find-prompt">' + esc(findPrompt(S.loadMode)) + '</pre><div class="row" style="margin-top:6px"><button class="btn" data-act="copyfind">Copy prompt</button></div></div>' +
     '<h2 class="sec">1 · Your folders</h2>' +
     '<div class="drop" id="drop" tabindex="0"><h3>Drop folders here</h3><div class="desc" style="margin:0 auto">Your <code>~/.claude</code> and your workspace folders (one or several, any depth). ' +
     'Optionally <code>~/.claude.json</code> for MCP servers, or a JSON from the collector. In Finder, <kbd>⌘ Shift .</kbd> shows hidden folders.</div>' +
@@ -629,8 +648,12 @@ function vLoad() {
       const why = s.isGlobal ? null : excludedBy(s.label, compiled);
       return '<label class="row" style="gap:8px;align-items:flex-start"><input type="checkbox" data-scope="' + i + '"' + (S.pick.has(i) ? ' checked' : '') + '> <span><span class="mono">' + esc(s.label) + '</span> ' +
         (s.isGlobal ? '<span class="tag acc">global</span>' : '') + (s.remote ? '<span class="tag">' + esc(s.remote.replace(/^https:\/\/github\.com\//, '')) + '</span>' : '') +
-        (why ? '<span class="tag warn">matches “' + esc(why) + '”</span>' : '') + '<br><span class="small muted">' + s.files.length + ' files</span></span></label>';
+        (why ? '<span class="tag warn">matches “' + esc(why) + '”</span>' : '') + '<br><span class="small muted">' + esc(summaryLine(s.files)) + '</span>' +
+        '<details class="src-in"><summary class="small">What is in it</summary>' + summarize(s.files).map((g) =>
+          '<div class="small"><b>' + esc(KIND_LABEL[g.kind] || g.kind) + '</b> <span class="muted">' + g.names.map(esc).join(' · ') + '</span></div>').join('') + '</details></span></label>';
     }).join('') + '</div>' +
+      '<div class="row" style="margin-top:8px"><button class="btn" data-act="pickall">All</button><button class="btn" data-act="picknone">None</button>' +
+      '<button class="btn" data-act="pickglobal">Only ~/.claude</button></div>' +
       (f.benches.length ? '<p class="small">Eval benches found: ' + f.benches.map((b) => '<code>' + esc(b.label.split('/').pop()) + '</code>').join(' ') + '</p>' : '') + '</div>' +
       '<div class="card" style="margin-top:10px"><label for="in-pat"><b>Exclusion list</b> <span class="small muted">One pattern per line, matched against folders, file paths and names (case-insensitive regex).</span></label>' +
       '<textarea id="in-pat" spellcheck="false">' + esc(S.patterns.join('\n')) + '</textarea>' +
@@ -903,6 +926,10 @@ const ACTIONS = {
     } catch (e) { if (!e || e.code !== 'cancelled') toast('Download did not happen' + (e && e.code ? ' (' + e.code + ')' : '') + '.'); }
   },
   copycmd: () => copy($('#cmd').textContent, 'Command copied.'),
+  copyfind: () => copy(findPrompt(S.loadMode), 'Prompt copied: paste it into Claude Code.'),
+  pickall: () => { S.pick = new Set(S.found.scopes.map((_, i) => i)); render(); },
+  picknone: () => { S.pick = new Set(); render(); },
+  pickglobal: () => { S.pick = new Set(S.found.scopes.map((s, i) => (s.isGlobal ? i : -1)).filter((i) => i >= 0)); render(); },
   copyprompt: () => copy(auditPrompt(S.auditLang, S.auditScope), 'Prompt copied: paste it into Claude.'),
   openaudit: (el) => { S.audit = S.audits.find((a) => a.id === el.dataset.id) || null; render(); },
   audit: async () => {
