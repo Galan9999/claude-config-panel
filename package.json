@@ -1,6 +1,6 @@
 {
   "name": "claude-config-panel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "See everything Claude Code is configured to do — settings, skills, agents, commands, hooks and scheduled tasks — and what runs on its own. Local, zero dependencies.",
   "type": "module",
   "bin": {
