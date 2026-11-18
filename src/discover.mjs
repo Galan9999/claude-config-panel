@@ -1,13 +1,15 @@
 import { existsSync, statSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
-import { CLAUDE, tilde } from './paths.mjs';
+import { CLAUDE, HOME, tilde } from './paths.mjs';
 import { ls, read, frontmatter, scriptDoc } from './fsutil.mjs';
 import { gitRemote, clearRemoteCache, isLinkedWorktree, repoRoot } from './git.mjs';
 import { describeConfig } from './labels.mjs';
 import { isFolderDoc } from './flows.mjs';
 
 /** Folders that never hold configuration and are expensive to walk. */
-const SKIP = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'vendor', 'coverage', '.turbo', 'tmp']);
+const SKIP = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'vendor', 'coverage', '.turbo', 'tmp',
+  // Scanning the whole home folder: these are huge and never hold a project's config.
+  'Library', '.Trash', '.cache', '.npm', '.nvm', '.pnpm-store', '.yarn', '.cargo', '.rustup', '.gradle', '.m2', 'Pictures', 'Movies', 'Music']);
 
 /** Where to look for projects when nobody says otherwise. */
 export const COMMON_ROOTS = ['Desktop/dades', 'code', 'dev', 'projects', 'proyectos',
@@ -34,7 +36,8 @@ export function findProjects(dir, depth, { withWorktrees = false } = {},
   for (const e of ls(dir)) {
     if (!e.isDirectory() || SKIP.has(e.name)) continue;
     const full = join(dir, e.name);
-    if (e.name === '.claude') { acc.projects.push(dirname(full)); continue; }
+    // ~/.claude is the global configuration, already read as such: not a project.
+    if (e.name === '.claude') { if (dirname(full) !== HOME) acc.projects.push(dirname(full)); continue; }
     if (isLinkedWorktree(full) && !withWorktrees) { acc.worktrees.push(full); continue; }
     findProjects(full, depth - 1, { withWorktrees }, acc);
   }
@@ -101,7 +104,8 @@ function collectScope(base, scope, repo, isGlobal, items) {
  * Walks the global configuration and each project under `scanRoots`.
  * @returns {{items: object[], skipped: string[]}}
  */
-export function discover({ scanRoots = [], withWorktrees = false, depth = DEFAULT_DEPTH } = {}) {
+export function discover({ scanRoots = [], withWorktrees = false, depth = DEFAULT_DEPTH, exclude = [] } = {}) {
+  const left = new Set(exclude);
   clearRemoteCache();
   const items = [];
   const projects = new Set(), skipped = new Set();
@@ -116,6 +120,7 @@ export function discover({ scanRoots = [], withWorktrees = false, depth = DEFAUL
   for (const proj of [...projects].sort()) {
     const worktree = isLinkedWorktree(proj);
     if (worktree && !withWorktrees) { skipped.add(tilde(proj)); continue; }
+    if (left.has(proj)) continue;
     collectScope(proj, tilde(proj) + (worktree ? '  (worktree)' : ''), proj, false, items);
   }
 
@@ -133,5 +138,6 @@ export function discover({ scanRoots = [], withWorktrees = false, depth = DEFAUL
     it.relPath = it.repo ? relative(it.repo, it.path) : null;
     try { const s = statSync(it.path); it.size = s.size; it.mtime = s.mtime.toISOString(); } catch { /* gone */ }
   });
-  return { items, skipped: [...skipped].sort() };
+  // `projects`: every project found, including the excluded ones, so they can be put back.
+  return { items, skipped: [...skipped].sort(), projects: [...projects].filter((p) => !isLinkedWorktree(p) || withWorktrees).sort() };
 }

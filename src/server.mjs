@@ -3,7 +3,9 @@ import { readFileSync, writeFileSync, copyFileSync, mkdirSync, existsSync } from
 import { join, extname, dirname } from 'node:path';
 import { existsSync as fileExists } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { BACKUPS, tilde } from './paths.mjs';
+import { BACKUPS, HOME, tilde } from './paths.mjs';
+import { statSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { read } from './fsutil.mjs';
 import { KIND_INFO } from './labels.mjs';
 import { discover } from './discover.mjs';
@@ -341,6 +343,51 @@ export function createPanelServer(options = {}) {
         overlayLive(map, readLive({ statePath, sessionsDir: options.sessionsDir, titlesDir: options.titlesDir, isAlive: options.isAlive }));
       }
       return send(res, 200, { ...map, edgeTypes: EDGE_TYPES, nodeTypes: NODE_TYPES });
+    }
+
+    // Where the configuration is read from. GET says which folders are scanned
+    // and what each project found holds; POST changes them for this run. Only
+    // what is read changes: nothing is written to disk.
+    const sourcesPayload = () => {
+      const all = discover({ ...options, exclude: [] });
+      const left = new Set(options.exclude || []);
+      const roots = (options.scanRoots || []).map(tilde);
+      const piece = (i) => ({ kind: i.kind, name: i.name });
+      return {
+        home: '~', roots, depth: options.depth ?? 5,
+        mode: roots.length === 1 && roots[0] === '~' ? 'everything' : 'chosen',
+        global: { label: '~/.claude', files: all.items.filter((i) => i.scope === 'Global').map(piece) },
+        projects: all.projects.map((p) => ({ path: p, label: tilde(p), included: !left.has(p),
+          files: all.items.filter((i) => i.project === p).map(piece) })),
+        skipped: all.skipped,
+      };
+    };
+    if (req.method === 'GET' && url.pathname === '/api/sources') return send(res, 200, sourcesPayload());
+    if (req.method === 'POST' && url.pathname === '/api/sources') {
+      if (!/^application\/json\b/.test(req.headers['content-type'] || '')) {
+        return send(res, 415, { error: 'se requiere content-type: application/json' });
+      }
+      let body;
+      try { body = JSON.parse(await readBody(req)); } catch { return send(res, 400, { error: 'invalid request' }); }
+      if (!body || typeof body !== 'object') return send(res, 400, { error: 'invalid request' });
+      if (body.roots !== undefined) {
+        if (!Array.isArray(body.roots) || !body.roots.length || body.roots.length > 30) return send(res, 400, { error: 'roots: between 1 and 30 folders' });
+        const roots = [];
+        for (const r of body.roots) {
+          const p = String(r || '').trim().replace(/^~(?=$|\/)/, HOME);
+          let ok = false;
+          try { ok = isAbsolute(p) && statSync(p).isDirectory(); } catch { /* missing */ }
+          if (!ok) return send(res, 422, { error: 'not a folder: ' + r });
+          roots.push(p);
+        }
+        options.scanRoots = [...new Set(roots)];
+      }
+      if (body.exclude !== undefined) {
+        if (!Array.isArray(body.exclude) || body.exclude.length > 500) return send(res, 400, { error: 'exclude: a list of project paths' });
+        options.exclude = body.exclude.map(String);
+      }
+      state = discover(options);
+      return send(res, 200, sourcesPayload());
     }
 
     // Every permission rule of every settings file, read from disk now.

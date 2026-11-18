@@ -134,6 +134,11 @@ details.adv summary{cursor:pointer;color:var(--acc2);font-size:12.5px}
   main{padding-block:20px 60px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+.src-modes{grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-bottom:10px}
+.src-modes .card{display:block;cursor:pointer}
+.src-modes .card.on{border-color:var(--acc);background:var(--accsoft)}
+.src-prompt{white-space:pre-wrap;font:12px var(--mono);background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:10px 12px;margin:10px 0 0}
+.src-in{margin-top:4px}.src-in summary{cursor:pointer;color:var(--acc2)}
 </style>
 
 <div class="shell">

@@ -11,7 +11,7 @@ There is no single screen that shows you all of it. This is that screen.
 [![License: MIT](https://img.shields.io/badge/license-MIT-D97757.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-5B8C51.svg)](package.json)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-5B8C51.svg)](package.json)
-[![Tests](https://img.shields.io/badge/tests-185-5B8C51.svg)](test)
+[![Tests](https://img.shields.io/badge/tests-247-5B8C51.svg)](test)
 
 </div>
 
@@ -20,6 +20,9 @@ npx claude-config-panel
 ```
 
 Open <http://127.0.0.1:7337>. Node 18+. Nothing to install, no dependencies, runs only on your machine.
+
+No Node? **[Try it in your browser](https://claude-config-panel.vercel.app)**: you pick the folders, they are
+read in the tab, and nothing is sent or saved anywhere.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/Galan9999/claude-config-panel/main/docs/overview.jpg" alt="Overview: every piece of Claude configuration grouped by type" width="820">
@@ -295,6 +298,17 @@ npx claude-config-panel ~/my-repos       # scan a specific folder
 With no arguments it looks for projects with a `.claude/` folder in the usual places (`~/code`,
 `~/dev`, `~/projects`, `~/Desktop`, `~/Documents`…). Ctrl+C to stop.
 
+The first time, the panel opens on **Sources**, where you choose what it reads:
+
+- **Everything on this computer** — scans your whole home folder (skipping `Library`, caches,
+  `node_modules` and worktrees), then you untick the projects you do not want.
+- **Only the folders I choose** — one path per line.
+- **Let Claude Code find them** — a prompt to paste into Claude Code that lists the folders holding
+  configuration and what each has, without opening or changing anything.
+
+Each project shows what it holds before you include it. The choice is kept in your browser and put
+back when the server restarts; nothing is written to disk.
+
 ---
 
 ## Security
@@ -417,7 +431,8 @@ import exactly the same code the browser runs.
 
 ## The artifact edition
 
-`artifact/` is a version that runs as a page, without Node: each person drops their folders and
+`artifact/` is a version that runs as a page, without Node — [hosted on Vercel](https://claude-config-panel.vercel.app),
+where nothing is saved, or as a claude.ai artifact, where each person's snapshot is kept privately: each person drops their folders and
 the snapshot is read in the browser and kept in their own private space. It has the same views plus
 **Mods**, **MCP servers** and **Routines**, lists pieces by kind and grouped by place (skills, agents,
 commands, hooks declared in settings, hook scripts, scheduled tasks), and speaks **English, Spanish

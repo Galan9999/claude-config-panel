@@ -8,15 +8,18 @@ import { renderPermissions } from './permview.js';
 import { renderTools } from './toolsview.js';
 import { renderRoutines } from './routinesview.js';
 import { renderMap } from './mapview.js';
+import { renderSources, reapplySources, savedSources } from './sourcesview.js';
 
 let DATA = null, view = 'overview', cur = null, text = '', orig = '', tab = 'ui';
 let MODS = null, PEOPLE = null, openPerson = null, FLOWS = null;
 
 /* ----- boot ----- */
-async function boot() {
+async function boot(landing) {
+  // The folders chosen last time live in this browser; a restarted server has forgotten them.
+  if (landing === undefined) await reapplySources();
   DATA = await (await fetch('/api/items')).json();
   try { MODS = (await (await fetch('/api/mods')).json()).mods; } catch { MODS = []; }
-  const navs = [['overview', '◉', 'Overview', '']]
+  const navs = [['overview', '◉', 'Overview', ''], ['sources', '⇩', 'Sources', '']]
     .concat(Object.entries(DATA.kinds).map(([k, v]) => [k, v.icon, v.label, DATA.counts[k]]))
     .concat([['mods', '◫', 'Mods', MODS === null ? '' : MODS.length], ['map', '⌘', 'Agent map', ''], ['flows', '⇢', 'Flows', ''], ['tools', '⚒', 'Tools', ''], ['routines', '◷', 'Routines', ''], ['permissions', '⚿', 'Permissions', ''], ['guide', '?', 'Permissions guide', ''],
       ['audits', '⎔', 'Auditor', ''], ['evals', '◎', 'Evals', ''],
@@ -26,7 +29,9 @@ async function boot() {
     '<div class="nav" data-v="' + k + '"><span class="ic">' + ic + '</span>' + lab +
     (n === '' ? '' : '<span class="n">' + n + '</span>') + '</div>').join('');
   $('#nav').onclick = (e) => { const el = e.target.closest('.nav'); if (el) go(el.dataset.v); };
-  go('overview');
+  // Nothing read yet, or never chosen where to read from: start by choosing.
+  const nothing = !DATA.items.some((i) => i.scope !== 'Global');
+  go(landing || (nothing || !savedSources() ? 'sources' : 'overview'));
 }
 function go(v) { view = v; cur = null; openPerson = null;
   document.querySelectorAll('.nav').forEach((e) => e.classList.toggle('on', e.dataset.v === v));
@@ -36,6 +41,7 @@ function go(v) { view = v; cur = null; openPerson = null;
   else if (v === 'tools') renderTools($('#main'));
   else if (v === 'routines') renderRoutines($('#main'));
   else if (v === 'map') renderMap($('#main'));
+  else if (v === 'sources') renderSources($('#main'), () => boot('sources'));
   else if (v === 'people') renderPeople();
   else if (v === 'mods') renderMods();
   else if (v === 'flows') renderFlows();

@@ -13,5 +13,5 @@ const node = readFileSync(join(here, 'collect-node.mjs'), 'utf8')
   .replace(/import \{[^}]*\} from '\.\/core\.js';\n/, '');
 writeFileSync(join(out, 'collect.mjs'), '#!/usr/bin/env node\n// ---- core (shared with the page) ----\n' + core + '\n// ---- collector ----\n' + node);
 for (const f of ['index.html', 'app.js', 'core.js', 'i18n.js']) copyFileSync(join(here, f), join(out, f));
-for (const f of ['permissions.js', 'advice.js', 'util.js', 'mods.js']) copyFileSync(join(here, '..', 'ui', f), join(out, f));
+for (const f of ['permissions.js', 'advice.js', 'util.js', 'mods.js', 'sources.js']) copyFileSync(join(here, '..', 'ui', f), join(out, f));
 console.log('built', out);
