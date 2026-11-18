@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Claude Config Panel">
+  <title>Claude Config Panel</title>
+  <circle cx="128" cy="128" r="124" fill="#D97757"/>
+  <!-- tail -->
+  <path d="M150 206 C 196 204, 206 168, 186 150" fill="none" stroke="#FFF8F2" stroke-width="14" stroke-linecap="round"/>
+  <!-- body -->
+  <path d="M92 214 C 88 176, 98 150, 128 150 C 158 150, 168 176, 164 214 Z" fill="#FFF8F2"/>
+  <!-- head with ears -->
+  <path d="M70 118 L 66 52 L 104 78 C 120 74, 136 74, 152 78 L 190 52 L 186 118 C 186 150, 160 166, 128 166 C 96 166, 70 150, 70 118 Z" fill="#FFF8F2"/>
+  <!-- pixel sunglasses -->
+  <g fill="#1F1E1D">
+    <rect x="62" y="104" width="132" height="8"/>
+    <rect x="76" y="112" width="44" height="10"/>
+    <rect x="136" y="112" width="44" height="10"/>
+    <rect x="84" y="122" width="30" height="8"/>
+    <rect x="144" y="122" width="30" height="8"/>
+    <rect x="92" y="130" width="16" height="6"/>
+    <rect x="152" y="130" width="16" height="6"/>
+  </g>
+  <g fill="#FFF8F2">
+    <rect x="82" y="112" width="8" height="5"/>
+    <rect x="142" y="112" width="8" height="5"/>
+    <rect x="90" y="117" width="6" height="5"/>
+    <rect x="150" y="117" width="6" height="5"/>
+  </g>
+  <!-- nose -->
+  <path d="M122 142 L134 142 L128 149 Z" fill="#D97757"/>
+</svg>
