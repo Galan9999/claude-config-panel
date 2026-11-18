@@ -11,6 +11,9 @@ Options:
   --port <n>     Port to listen on (default 7337)
   --depth <n>    How deep to look for .claude/ folders (default ${DEFAULT_DEPTH})
   --worktrees    Include linked worktrees, skipped by default
+  --sdd-state <file>  The SDD coordinator's state.json, for the agent map
+                 (also CCP_SDD_STATE; default: the first scanned project
+                 with .sdd/_conductor/state.json)
   -h, --help     This help
   -v, --version  Version
 
@@ -34,6 +37,7 @@ export function parseArgs(argv, env = {}) {
     const a = argv[i];
     if (a === '--port') { opts.port = Number(argv[++i]); continue; }
     if (a === '--worktrees') { opts.withWorktrees = true; continue; }
+    if (a === '--sdd-state') { opts.sddState = argv[++i]; continue; }
     if (a === '--depth') { opts.depth = Number(argv[++i]); continue; }
     if (a === '-h' || a === '--help') { opts.help = true; continue; }
     if (a === '-v' || a === '--version') { opts.version = true; continue; }
