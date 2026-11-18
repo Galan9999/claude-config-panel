@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(vercel --prod:*)",
+      "Bash(vercel deploy:*)",
+      "Bash(vercel promote:*)",
+      "Bash(npm publish:*)",
+      "Bash(git push origin main:*)"
+    ]
+  }
+}
