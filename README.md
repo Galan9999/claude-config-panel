@@ -7,6 +7,7 @@
 Your Claude setup is scattered across `~/.claude` and a `.claude/` folder in every repo.
 There is no single screen that shows you all of it. This is that screen.
 
+[![npm](https://img.shields.io/npm/v/claude-config-panel.svg?color=D97757)](https://www.npmjs.com/package/claude-config-panel)
 [![CI](https://github.com/Galan9999/claude-config-panel/actions/workflows/ci.yml/badge.svg)](https://github.com/Galan9999/claude-config-panel/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-D97757.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-5B8C51.svg)](package.json)
